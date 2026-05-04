@@ -5,7 +5,7 @@ on:
     inputs:
       # ========== 仓库和分支选择（合并成一个选项）==========
       source_branch:
-        description: '选择源码仓库和分支版本（格式：库名 - 分支版本）'
+        description: '源码仓库和分支版本'
         type: choice
         required: true
         options:
@@ -36,36 +36,52 @@ on:
           - 'DIY2 - master'
           - 'DIY2 - custom-branch'
           
-          # ========== 完全自定义（需要额外填写）==========
-          - 'custom-url - custom'
+          # ========== 完全自定义 ==========
+          - 'custom - custom'
 
-      # ========== 自定义仓库 URL（仅当选择 custom-url 时需要） ==========
+      # ========== 自定义仓库 URL ==========
       custom_url:
-        description: '【仅当选择 custom-url - custom 时填写】自定义仓库 URL（格式：https://github.com/作者/仓库名）'
+        description: '仅当选择 custom使用请输入custom的url仓库地址'
         type: string
         required: false
 
-      # ========== 自定义分支（仅当选择 custom-url 时需要） ==========
+      # ========== 自定义分支 ==========
       custom_branch:
-        description: '【仅当选择 custom-url - custom 时填写】自定义分支名称'
-        type: string
-        required: false
-
-      # ========== 自定义配置文件（仅当选择 custom-url 时需要） ==========
-      custom_config:
-        description: '【仅当选择 custom-url - custom 时填写】自定义配置文件路径（相对于 configs/ 目录，如: myconfig.config）'
+        description: '仅当选择 custom使用请输入custom的分支版本'
         type: string
         required: false
 
 env:
   # ========== 基础配置 ==========
-  FEEDS_CONF: feeds.conf.default
-  DIY_P1_SH: diy-part1.sh
-  DIY_P2_SH: diy-part2.sh
+  FEEDS_CONF: feeds.conf.default          # feeds 配置文件路径
+  DIY_P1_SH: diy-part1.sh                 # DIY 脚本 Part 1 路径（在更新 feeds 前执行）
+  DIY_P2_SH: diy-part2.sh                 # DIY 脚本 Part 2 路径（在更新 feeds 后执行）
+  
+  # ========== 上传配置（重要：请根据需要调整）==========
+  # UPLOAD_FIRMWARE: true    # 是否上传固件文件（固件包）
+  #   - 作用：将编译生成的固件文件上传为 GitHub Actions Artifact
+  #   - 上传路径：bin/targets/*/* (固件包所在目录)
+  #   - 使用场景：每次编译后都可以在 Actions 页面下载固件
+  #   - 建议：保持 true，方便下载固件
   UPLOAD_FIRMWARE: true
+  
+  # UPLOAD_BIN_DIR: false    # 是否上传整个 bin 目录（包含所有编译产物）
+  #   - 作用：将整个 bin 目录上传为 GitHub Actions Artifact
+  #   - 上传路径：bin (包含所有编译产物，如 SDK、ImageBuilder 等)
+  #   - 使用场景：需要下载完整的编译产物（不仅仅是固件）
+  #   - 注意：文件体积较大，可能会占用较多存储空间
+  #   - 建议：通常保持 false，除非需要完整产物
   UPLOAD_BIN_DIR: false
+  
+  # UPLOAD_RELEASE: false    # 是否发布到 GitHub Release（仅在 Release 事件触发时有效）
+  #   - 作用：将编译产物发布到 GitHub Release
+  #   - 上传路径：bin/targets/*/* (固件包)
+  #   - 使用场景：配合 Release 事件，自动发布固件到 Release 页面
+  #   - 注意：仅在 github.event_name == 'release' 时生效
+  #   - 建议：通常保持 false，手动发布更可控
   UPLOAD_RELEASE: false
-  TZ: Asia/Shanghai
+  
+  TZ: Asia/Shanghai                       # 时区设置
 
 jobs:
   build:
@@ -79,7 +95,6 @@ jobs:
           INPUT="${{ github.event.inputs.source_branch }}"
           CUSTOM_URL="${{ github.event.inputs.custom_url }}"
           CUSTOM_BRANCH="${{ github.event.inputs.custom_branch }}"
-          CUSTOM_CONFIG="${{ github.event.inputs.custom_config }}"
           
           # 解析 "库名 - 分支版本" 格式
           REPO_NAME=$(echo "$INPUT" | cut -d'-' -f1 | xargs)
@@ -140,31 +155,19 @@ jobs:
               echo "✅ 配置文件: $CONFIG_FILE"
               ;;
               
-            "custom-url")
+            "custom")
               # 完全自定义仓库
               if [ -z "$CUSTOM_URL" ] || [ -z "$CUSTOM_BRANCH" ]; then
-                echo "❌ 错误：选择 custom-url 时必须填写仓库 URL 和分支！"
+                echo "❌ 错误：选择 custom 时必须填写仓库 URL 和分支！"
                 exit 1
               fi
               
               REPO_URL="$CUSTOM_URL"
               REPO_DIR=$(basename "$CUSTOM_URL" .git)
               BRANCH_NAME="$CUSTOM_BRANCH"
+              CONFIG_FILE="configs/custom.config"
               
-              # 检查是否提供了配置文件
-              if [ -z "$CUSTOM_CONFIG" ]; then
-                echo "⚠️ 警告：未提供配置文件路径，将使用默认配置"
-                CONFIG_FILE=""
-              else
-                # 如果提供了相对路径，添加 configs/ 前缀
-                if [[ "$CUSTOM_CONFIG" != configs/* ]]; then
-                  CONFIG_FILE="configs/$CUSTOM_CONFIG"
-                else
-                  CONFIG_FILE="$CUSTOM_CONFIG"
-                fi
-              fi
-              
-              echo "✅ 选择的仓库: custom-url"
+              echo "✅ 选择的仓库: custom"
               echo "✅ 仓库地址: $REPO_URL"
               echo "✅ 仓库目录: $REPO_DIR"
               echo "✅ 选择的分支: $BRANCH_NAME"
@@ -218,7 +221,6 @@ jobs:
 
       # ========== 第五步：复制配置文件并重命名为 .config ==========
       - name: Copy and Rename Configuration File
-        if: env.CONFIG_FILE != ''
         run: |
           cd ${{ env.REPO_DIR }}
           
