@@ -92,6 +92,11 @@ env:
   
   TZ: Asia/Shanghai                       # 时区设置
 
+  # ========== Node.js 24 兼容性设置 ==========
+  # 强制 JavaScript actions 使用 Node.js 24
+  # 这样可以消除 Node.js 20 弃用警告
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-22.04
