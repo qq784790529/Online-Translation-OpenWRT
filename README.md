@@ -24,8 +24,8 @@
   -   2、OpenWrt 多源码仓库编译 支持SSH配置.config      //这个支持ssh调试，需要在run workflow里面勾选，如果不勾选默认使用configs里面的.config文件。
 
 ## 关于dts的问题
-  - dts不在本项目中使用
-  - dts需要配置在你Fock的库中，具体的dts正常因该是在 ../target/linux/SOC架构/dts/ 里面，找到对应的版型修改就行
+  - dts 不在本项目中使用
+  - dts 需要配置在你Fock的库中，具体的dts正常因该是在 ../target/linux/SOC架构/dts/ 里面，找到对应的版型修改就行
 
 ## 引用的库文件
   - [OpenWrt](https://github.com/openwrt/openwrt)
