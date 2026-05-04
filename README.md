@@ -1,4 +1,4 @@
-OpenWrt 多源码仓库编译系统
+# OpenWrt 多源码仓库编译系统
 
 # 进入你的 OpenWrt 源码目录
 cd openwrt
