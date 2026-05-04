@@ -1,4 +1,4 @@
-name: OpenWrt Multi-Source Build
+name: OpenWrt 多源码仓库编译
 
 on:
   workflow_dispatch:
@@ -98,7 +98,7 @@ jobs:
 
     steps:
       # ========== 第一步：解析仓库和分支 ==========
-      - name: Parse Repository and Branch
+      - name: 📦 解析仓库和分支
         id: parse_repo
         run: |
           INPUT="${{ github.event.inputs.source_branch }}"
@@ -196,11 +196,11 @@ jobs:
           echo "CONFIG_FILE=$CONFIG_FILE" >> $GITHUB_ENV
 
       # ========== 第二步：检出当前仓库（获取配置文件、脚本等）==========
-      - name: Checkout Current Repository
+      - name: 🔍 检出当前仓库
         uses: actions/checkout@v4
 
       # ========== 第三步：安装编译依赖 ==========
-      - name: Install Build Dependencies
+      - name: 🔧 安装编译依赖
         run: |
           echo "📦 开始安装编译依赖..."
           
@@ -217,7 +217,7 @@ jobs:
           echo "✅ 编译依赖安装完成"
 
       # ========== 第四步：克隆源码仓库 ==========
-      - name: Clone Source Repository
+      - name: 📥 克隆源码仓库
         run: |
           echo "📦 正在克隆仓库: ${{ env.REPO_URL }}"
           echo "🌿 仓库目录: ${{ env.REPO_DIR }}"
@@ -229,7 +229,7 @@ jobs:
           ls -la
 
       # ========== 第五步：复制配置文件并重命名为 .config ==========
-      - name: Copy and Rename Configuration File
+      - name: 📄 复制配置文件
         run: |
           cd ${{ env.REPO_DIR }}
           
@@ -257,7 +257,7 @@ jobs:
           fi
 
       # ========== 第六步：执行 DIY 脚本 Part 1（可选）==========
-      - name: Run DIY Script Part 1
+      - name: 🔨 执行 DIY 脚本 Part 1
         if: env.DIY_P1_SH != ''
         run: |
           cd ${{ env.REPO_DIR }}
@@ -270,7 +270,7 @@ jobs:
           fi
 
       # ========== 第七步：更新和安装 feeds ==========
-      - name: Update and Install Feeds
+      - name: 🔄 更新和安装 feeds
         run: |
           cd ${{ env.REPO_DIR }}
           
@@ -283,7 +283,7 @@ jobs:
           echo "✅ Feeds 更新和安装完成"
 
       # ========== 第八步：执行 DIY 脚本 Part 2（可选）==========
-      - name: Run DIY Script Part 2
+      - name: 🔨 执行 DIY 脚本 Part 2
         if: env.DIY_P2_SH != ''
         run: |
           cd ${{ env.REPO_DIR }}
@@ -296,7 +296,7 @@ jobs:
           fi
 
       # ========== 第九步：配置编译选项（使用 .config）==========
-      - name: Configure Build Options with .config
+      - name: ⚙️ 配置编译选项
         run: |
           cd ${{ env.REPO_DIR }}
           
@@ -316,7 +316,7 @@ jobs:
           fi
 
       # ========== 第十步：编译 OpenWrt ==========
-      - name: Build OpenWrt
+      - name: 🏗️ 编译 OpenWrt
         run: |
           cd ${{ env.REPO_DIR }}
           
@@ -337,23 +337,23 @@ jobs:
           echo "✅ OpenWrt 编译完成！"
 
       # ========== 第十一步：上传固件（可选）==========
-      - name: Upload Firmware
+      - name: 📤 上传固件
         if: env.UPLOAD_FIRMWARE == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # ✅ 已修正：从 v3 改为 v4
         with:
           name: openwrt-firmware
           path: ${{ env.REPO_DIR }}/bin/targets/*/*
 
       # ========== 第十二步：上传 bin 目录（可选）==========
-      - name: Upload Bin Directory
+      - name: 📤 上传 bin 目录
         if: env.UPLOAD_BIN_DIR == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # ✅ 已修正：从 v3 改为 v4
         with:
           name: openwrt-bin
           path: ${{ env.REPO_DIR }}/bin
 
       # ========== 第十三步：发布到 Release（可选）==========
-      - name: Upload to Release
+      - name: 🚀 发布到 Release
         if: env.UPLOAD_RELEASE == 'true' && github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
