@@ -1,4 +1,4 @@
-name: OpenWrt 多源码仓库编译
+name: OpenWrt 多源码仓库编译 不支持SSH配置
 
 on:
   workflow_dispatch:
