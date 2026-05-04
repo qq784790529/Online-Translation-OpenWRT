@@ -35,6 +35,12 @@ on:
           
           # ========== 自定义仓库 1 ==========
           - 'DIY1 - master'
+          - 'DIY1 - openwrt-25.12'
+          - 'DIY1 - openwrt-24.10'
+          - 'DIY1 - openwrt-23.05'
+          - 'DIY1 - openwrt-21.02'
+          - 'DIY1 - openwrt-18.06'
+          - 'DIY1 - openwrt-18.06-k5.4'
           
           # ========== 自定义仓库 2 ==========
           - 'DIY2 - master'
