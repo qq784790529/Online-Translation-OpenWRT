@@ -1,36 +1,5 @@
 OpenWrt 多源码仓库编译系统
 
-
-📁 项目目录结构
-your-openwrt-build-repo/
-├── .github/
-│   └── workflows/
-│       └── build.yml          # OpenWrt 编译自动化工作流文件
-├── configs/
-│   ├── openwrt.config         # OpenWrt 官方仓库配置文件
-│   ├── lede.config            # LEDE 仓库配置文件
-│   ├── immortalwrt.config     # ImmortalWrt 官方仓库配置文件
-│   ├── diy1.config            # DIY1 仓库配置文件
-│   ├── diy2.config            # DIY2 仓库配置文件
-│   └── custom.config          # Custom 仓库配置文件
-├── diy-part1.sh               # DIY 脚本第一部分（可选）
-├── diy-part2.sh               # DIY 脚本第二部分（可选）
-├── feeds.conf.default         # feeds 配置文件（可选）
-├── README.md                  # 项目说明文档（本文件）
-└── .gitignore                 # Git 忽略文件配置
-🚀 使用步骤
-第一步：Fork 本仓库
-访问 GitHub 仓库页面
-点击右上角的 Fork 按钮
-将仓库 Fork 到你的 GitHub 账号下
-第二步：准备配置文件
-在 configs/ 目录下准备对应的 .config 配置文件：
-bash
-
-编辑
-
-
-
 # 进入你的 OpenWrt 源码目录
 cd openwrt
 
