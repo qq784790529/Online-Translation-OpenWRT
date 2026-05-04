@@ -288,8 +288,14 @@ jobs:
               exit 1
             fi
             
+            # 强制删除源码仓库自带的 .config（如果有）
+            if [ -f ".config" ]; then
+              echo "⚠️ 检测到源码仓库自带的 .config，正在删除..."
+              rm -f .config
+            fi
+            
             # 复制配置文件并重命名为 .config（编译程序只认这个文件名）
-            cp "../${{ env.CONFIG_FILE }}" .config
+            cp -f "../${{ env.CONFIG_FILE }}" .config
             
             # 验证 .config 文件是否创建成功
             if [ -f ".config" ]; then
@@ -297,6 +303,8 @@ jobs:
               echo "📄 配置文件来源: ${{ env.CONFIG_FILE }}"
               echo "📄 目标文件: .config"
               echo "📄 配置文件大小: $(wc -c < .config) bytes"
+              echo "📄 配置文件内容预览（前20行）:"
+              head -20 .config
             else
               echo "❌ 错误：.config 文件创建失败！"
               exit 1
