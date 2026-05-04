@@ -10,31 +10,34 @@ on:
         required: true
         options:
           # ========== OpenWrt 官方仓库 ==========
-          - 'openwrt/openwrt - openwrt-23.05'
-          - 'openwrt/openwrt - openwrt-22.03'
-          - 'openwrt/openwrt - openwrt-21.02'
-          - 'openwrt/openwrt - openwrt-19.07'
+          - 'openwrt/openwrt - main'
+          - 'openwrt/openwrt - lede-17.01'
           - 'openwrt/openwrt - master'
+          - 'openwrt/openwrt - openwrt-18.06'
+          - 'openwrt/openwrt - openwrt-19.07'
+          - 'openwrt/openwrt - openwrt-21.02'
+          - 'openwrt/openwrt - openwrt-22.03'
+          - 'openwrt/openwrt - openwrt-23.05'
+          - 'openwrt/openwrt - openwrt-24.10'
+          - 'openwrt/openwrt - openwrt-25.12'
           
           # ========== LEDE 仓库 ==========
           - 'coolsnowwolf/lede - master'
-          - 'coolsnowwolf/lede - 18.06'
           
           # ========== ImmortalWrt 官方仓库 ==========
-          - 'ImmortalWrt/immortalwrt - openwrt-23.05-k5.15'
-          - 'ImmortalWrt/immortalwrt - openwrt-23.05-k6.6'
-          - 'ImmortalWrt/immortalwrt - openwrt-21.02-k5.4'
-          - 'ImmortalWrt/immortalwrt - openwrt-21.02-k5.10'
           - 'ImmortalWrt/immortalwrt - master'
+          - 'ImmortalWrt/immortalwrt - openwrt-25.12'
+          - 'ImmortalWrt/immortalwrt - openwrt-24.10'
+          - 'ImmortalWrt/immortalwrt - openwrt-23.05'
+          - 'ImmortalWrt/immortalwrt - openwrt-21.02'
+          - 'ImmortalWrt/immortalwrt - openwrt-18.06'
+          - 'ImmortalWrt/immortalwrt - openwrt-18.06-k5.4'
           
           # ========== 自定义仓库 1 ==========
           - 'DIY1 - master'
-          - 'DIY1 - 18.06'
-          - 'DIY1 - custom-branch'
           
           # ========== 自定义仓库 2 ==========
           - 'DIY2 - master'
-          - 'DIY2 - custom-branch'
           
           # ========== 完全自定义 ==========
           - 'custom - custom'
