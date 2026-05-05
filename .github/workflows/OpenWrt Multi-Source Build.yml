@@ -1,4 +1,4 @@
-name: OpenWrt 多源码仓库编译系统（完整依赖版）
+name: OpenWrt 多源码仓库编译系统（修正版）
 
 on:
   workflow_dispatch:
@@ -11,19 +11,17 @@ on:
         options:
           # ========== OpenWrt 官方仓库（保留所有老版本）==========
           - 'openwrt/openwrt - main'
-          - 'openwrt/openwrt - lede-17.01'
+          - 'openwrt/openwrt - lede-17.01' # 老设备专用
           - 'openwrt/openwrt - master'
-          - 'openwrt/openwrt - openwrt-18.06'
+          - 'openwrt/openwrt - openwrt-18.06' # 经典老版本
           - 'openwrt/openwrt - openwrt-19.07'
           - 'openwrt/openwrt - openwrt-21.02'
           - 'openwrt/openwrt - openwrt-22.03'
           - 'openwrt/openwrt - openwrt-23.05'
           - 'openwrt/openwrt - openwrt-24.10'
           - 'openwrt/openwrt - openwrt-25.12'
-          
           # ========== LEDE 仓库（保留）==========
           - 'coolsnowwolf/lede - master'
-          
           # ========== ImmortalWrt 官方仓库（保留）==========
           - 'ImmortalWrt/immortalwrt - master'
           - 'ImmortalWrt/immortalwrt - openwrt-25.12'
@@ -32,9 +30,7 @@ on:
           - 'ImmortalWrt/immortalwrt - openwrt-21.02'
           - 'ImmortalWrt/immortalwrt - openwrt-18.06'
           - 'ImmortalWrt/immortalwrt - openwrt-18.06-k5.4'
-          
-          # ========== 自定义仓库 (已扩展为3个) ==========
-          # =================== DIY1 ====================
+          # ========== 自定义仓库（已扩展为3个）==========
           - 'DIY1 - master'
           - 'DIY1 - openwrt-25.12'
           - 'DIY1 - openwrt-24.10'
@@ -42,19 +38,17 @@ on:
           - 'DIY1 - openwrt-21.02'
           - 'DIY1 - openwrt-18.06'
           - 'DIY1 - openwrt-18.06-k5.4'
-
-          # =================== DIY2 ====================
+          # ========== 新增的两个自定义库选项 ==========
           - 'DIY2 - master'
 
-          # =================== DIY3 ====================
           - 'DIY3 - master'
-
+          
           # ========== 完全自定义 ==========
           - 'custom - custom'
 
       # ========== 版本选择（核心功能）==========
       version_tag:
-        description: '🏷️ 指定版本标签（可选）'
+        description: '🏷️ 指定版本标签（可选，新手直接复制 Tags 中的版本号）'
         type: string
         required: false
         default: ''
@@ -83,22 +77,24 @@ on:
 
 env:
   # ========== 基础配置 ==========
-  FEEDS_CONF: feeds.conf.default
-  DIY_P1_SH: diy-part1.sh
-  DIY_P2_SH: diy-part2.sh
+  FEEDS_CONF: feeds.conf.default # feeds 配置文件路径
+  DIY_P1_SH: diy-part1.sh # DIY 脚本 Part 1 路径（在更新 feeds 前执行）
+  DIY_P2_SH: diy-part2.sh # DIY 脚本 Part 2 路径（在更新 feeds 后执行）
+
   # ========== 上传配置 ==========
-  UPLOAD_FIRMWARE: true
-  UPLOAD_BIN_DIR: false
-  UPLOAD_RELEASE: false
-  TZ: Asia/Shanghai
+  UPLOAD_FIRMWARE: true # 是否上传固件文件（固件包）
+  UPLOAD_BIN_DIR: false # 是否上传整个 bin 目录
+  UPLOAD_RELEASE: false # 是否发布到 GitHub Release
+  TZ: Asia/Shanghai # 时区设置
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     name: OpenWrt 编译任务
+
     steps:
       # ==========================================================================
-      # 第一步：解析仓库和分支（已扩展支持 DIY1, DIY2, DIY3）
+      # 第一步：解析仓库和分支
       # ==========================================================================
       - name: 📦 第一步：解析仓库和分支
         id: parse_repo
@@ -110,44 +106,73 @@ jobs:
           CUSTOM_URL="${{ github.event.inputs.custom_url }}"
           CUSTOM_BRANCH="${{ github.event.inputs.custom_branch }}"
 
+          # 解析 "库名 - 分支版本" 格式
           REPO_NAME=$(echo "$INPUT" | cut -d'-' -f1 | xargs)
           BRANCH_NAME=$(echo "$INPUT" | cut -d'-' -f2- | xargs)
+          echo "📦 选择的选项: $INPUT"
+          echo "📦 仓库名: $REPO_NAME"
+          echo "📦 分支: $BRANCH_NAME"
 
+          # ========== 根据仓库名设置配置 ==========
           case "$REPO_NAME" in
             "openwrt/openwrt")
               REPO_URL="https://github.com/openwrt/openwrt"
               REPO_DIR="openwrt"
               CONFIG_FILE="configs/openwrt.config"
+              echo "✅ 选择的仓库: openwrt/openwrt"
+              echo "✅ 选择的分支: $BRANCH_NAME"
+              echo "✅ 配置文件: $CONFIG_FILE"
               ;;
             "coolsnowwolf/lede")
               REPO_URL="https://github.com/coolsnowwolf/lede"
               REPO_DIR="lede"
               CONFIG_FILE="configs/lede.config"
+              echo "✅ 选择的仓库: coolsnowwolf/lede"
+              echo "✅ 选择的分支: $BRANCH_NAME"
+              echo "✅ 配置文件: $CONFIG_FILE"
               ;;
             "ImmortalWrt/immortalwrt")
               REPO_URL="https://github.com/ImmortalWrt/immortalwrt"
               REPO_DIR="immortalwrt"
               CONFIG_FILE="configs/immortalwrt.config"
+              echo "✅ 选择的仓库: ImmortalWrt/immortalwrt"
+              echo "✅ 选择的分支: $BRANCH_NAME"
+              echo "✅ 配置文件: $CONFIG_FILE"
               ;;
             "DIY1")
-              # 🔧 请修改下面的 URL 为你实际的 DIY1 仓库地址
+              # 自定义仓库 1（请修改为你需要的仓库地址）
               REPO_URL="https://github.com/qq784790529/immortalwrt"
               REPO_DIR="diy1"
               CONFIG_FILE="configs/diy1.config"
+              echo "✅ 选择的仓库: DIY1"
+              echo "✅ 仓库地址: $REPO_URL"
+              echo "✅ 选择的分支: $BRANCH_NAME"
+              echo "✅ 配置文件: $CONFIG_FILE"
               ;;
+            # ========== 新增 DIY2 逻辑 ==========
             "DIY2")
-              # 🔧 请修改下面的 URL 为你实际的 DIY2 仓库地址
+              # 自定义仓库 2（请修改为你需要的仓库地址）
               REPO_URL="https://github.com/qq784790529/lede"
               REPO_DIR="diy2"
               CONFIG_FILE="configs/diy2.config"
+              echo "✅ 选择的仓库: DIY2"
+              echo "✅ 仓库地址: $REPO_URL"
+              echo "✅ 选择的分支: $BRANCH_NAME"
+              echo "✅ 配置文件: $CONFIG_FILE"
               ;;
+            # ========== 新增 DIY3 逻辑 ==========
             "DIY3")
-              # 🔧 请修改下面的 URL 为你实际的 DIY3 仓库地址
-              REPO_URL="https://github.com/qq784790529/openwrt"
+              # 自定义仓库 3（请修改为你需要的仓库地址）
+              REPO_URL="https://github.com/你的用户名/你的DIY3仓库"
               REPO_DIR="diy3"
               CONFIG_FILE="configs/diy3.config"
+              echo "✅ 选择的仓库: DIY3"
+              echo "✅ 仓库地址: $REPO_URL"
+              echo "✅ 选择的分支: $BRANCH_NAME"
+              echo "✅ 配置文件: $CONFIG_FILE"
               ;;
             "custom")
+              # 完全自定义仓库
               if [ -z "$CUSTOM_URL" ] || [ -z "$CUSTOM_BRANCH" ]; then
                 echo "❌ 错误：选择 custom 时必须填写仓库 URL 和分支！"
                 exit 1
@@ -156,6 +181,11 @@ jobs:
               REPO_DIR=$(basename "$CUSTOM_URL" .git)
               BRANCH_NAME="$CUSTOM_BRANCH"
               CONFIG_FILE="configs/custom.config"
+              echo "✅ 选择的仓库: custom"
+              echo "✅ 仓库地址: $REPO_URL"
+              echo "✅ 仓库目录: $REPO_DIR"
+              echo "✅ 选择的分支: $BRANCH_NAME"
+              echo "✅ 配置文件: $CONFIG_FILE"
               ;;
             *)
               echo "❌ 未知的仓库选项: $REPO_NAME"
@@ -163,10 +193,14 @@ jobs:
               ;;
           esac
 
+          # 导出环境变量
           echo "REPO_URL=$REPO_URL" >> $GITHUB_ENV
           echo "REPO_DIR=$REPO_DIR" >> $GITHUB_ENV
           echo "REPO_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
           echo "CONFIG_FILE=$CONFIG_FILE" >> $GITHUB_ENV
+          echo "================================================================"
+          echo "✅ 仓库解析完成"
+          echo "================================================================"
 
       # ==========================================================================
       # 第二步：检出当前仓库
