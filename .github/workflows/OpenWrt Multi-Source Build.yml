@@ -1,11 +1,26 @@
-name: OpenWrt 多源码仓库编译 支持SSH配置.config
+# ============================================================================
+# OpenWrt 多源码仓库编译系统
+# ============================================================================
+# 功能特性：
+#   ✅ 智能版本选择（自动/手动/最新/分支）
+#   ✅ 严格主版本匹配（23.05 只匹配 v23.05.x）
+#   ✅ Tags 版本直接复制使用（如 v23.05.6）
+#   ✅ 自动回退机制（tag 无效时回退到分支）
+#   ✅ SSH 远程配置 .config 文件
+#   ✅ 完整错误提示和可用版本列表
+#   ✅ 详细日志输出（新手友好）
+# ============================================================================
+name: OpenWrt 多源码仓库编译系统（智能版本选择）
 
+# ============================================================================
+# 触发方式：手动触发（Run workflow）
+# ============================================================================
 on:
   workflow_dispatch:
     inputs:
       # ========== 仓库和分支选择（合并成一个选项）==========
       source_branch:
-        description: '源码仓库和分支版本'
+        description: '📦 选择源码仓库和分支版本（必选）'
         type: choice
         required: true
         options:
@@ -42,92 +57,81 @@ on:
           - 'DIY1 - openwrt-18.06'
           - 'DIY1 - openwrt-18.06-k5.4'
           
-          # ========== 自定义仓库 2 ==========
-          - 'DIY2 - master'
-          
           # ========== 完全自定义 ==========
           - 'custom - custom'
 
-      # ========== 版本选择（新增）==========
+      # ========== 版本选择（核心功能）==========
       version_tag:
-        description: '指定版本标签（可选）'
+        description: '🏷️ 指定版本标签（可选，新手直接复制 Tags 中的版本号）'
         type: string
         required: false
         default: ''
-        placeholder: '例如: v23.05.7, v24.10.6, latest, branch（留空自动选择）'
+        placeholder: '例如: v23.05.6, v24.10.2, latest, branch（留空自动选择最新正式版）'
+        # 使用说明：
+        #   - 留空：自动选择当前分支最新正式版（推荐新手）
+        #   - 输入版本号：直接复制 Tags 中的版本（如 v23.05.6）
+        #   - 输入 latest：强制使用最新正式版
+        #   - 输入 branch：强制使用分支版本（开发版）
 
       # ========== 自定义仓库 URL ==========
       custom_url:
-        description: '仅当选择 custom使用请输入custom的url仓库地址'
+        description: '🔗 自定义仓库 URL（仅当选择 custom 时必填）'
         type: string
         required: false
+        placeholder: '例如: https://github.com/yourname/yourrepo'
 
       # ========== 自定义分支 ==========
       custom_branch:
-        description: '仅当选择 custom使用请输入custom的分支版本'
+        description: '🌿 自定义分支名称（仅当选择 custom 时必填）'
         type: string
         required: false
+        placeholder: '例如: master, openwrt-23.05'
 
       # ========== SSH 调试模式 ==========
       enable_ssh_debug:
-        description: '是否启用SSH调试模式（用于配置.config文件）'
+        description: '🐞 是否启用 SSH 远程配置 .config 文件（可选）'
         type: boolean
         required: false
         default: false
+        # 使用说明：
+        #   - 启用后：提供 15 分钟 SSH 连接，可远程配置 .config
+        #   - 禁用后：使用 configs/ 目录中的配置文件
 
+# ============================================================================
+# 环境变量配置
+# ============================================================================
 env:
   # ========== 基础配置 ==========
   FEEDS_CONF: feeds.conf.default          # feeds 配置文件路径
   DIY_P1_SH: diy-part1.sh                 # DIY 脚本 Part 1 路径（在更新 feeds 前执行）
   DIY_P2_SH: diy-part2.sh                 # DIY 脚本 Part 2 路径（在更新 feeds 后执行）
   
-  # ========== 上传配置（重要：请根据需要调整）==========
-  # UPLOAD_FIRMWARE: true    # 是否上传固件文件（固件包）
-  #   - 作用：将编译生成的固件文件上传为 GitHub Actions Artifact
-  #   - 上传路径：bin/targets/*/* (固件包所在目录)
-  #   - 使用场景：每次编译后都可以在 Actions 页面下载固件
-  #   - 建议：保持 true，方便下载固件
-  UPLOAD_FIRMWARE: true
-  
-  # UPLOAD_BIN_DIR: false    # 是否上传整个 bin 目录（包含所有编译产物）
-  #   - 作用：将整个 bin 目录上传为 GitHub Actions Artifact
-  #   - 上传路径：bin (包含所有编译产物，如 SDK、ImageBuilder 等)
-  #   - 使用场景：需要下载完整的编译产物（不仅仅是固件）
-  #   - 注意：文件体积较大，可能会占用较多存储空间
-  #   - 建议：通常保持 false，除非需要完整产物
-  UPLOAD_BIN_DIR: false
-  
-  # UPLOAD_RELEASE: false    # 是否发布到 GitHub Release（仅在 Release 事件触发时有效）
-  #   - 作用：将编译产物发布到 GitHub Release
-  #   - 上传路径：bin/targets/*/* (固件包)
-  #   - 使用场景：配合 Release 事件，自动发布固件到 Release 页面
-  #   - 注意：仅在 github.event_name == 'release' 时生效
-  #   - 建议：通常保持 false，手动发布更可控
-  UPLOAD_RELEASE: false
+  # ========== 上传配置 ==========
+  UPLOAD_FIRMWARE: true                   # 是否上传固件文件（固件包）
+  UPLOAD_BIN_DIR: false                   # 是否上传整个 bin 目录
+  UPLOAD_RELEASE: false                   # 是否发布到 GitHub Release
   
   TZ: Asia/Shanghai                       # 时区设置
 
-  # ========== 刷机包文件筛选规则 ==========
-  # 只上传以下类型的刷机包文件，不上传 ipk 等其他文件
-  # 支持的刷机包格式：
-  #   - *-squashfs-sysupgrade.bin    (squashfs 系统升级包)
-  #   - *-squashfs-factory.bin       (squashfs 工厂固件)
-  #   - *-ext4-sysupgrade.bin        (ext4 系统升级包)
-  #   - *-ext4-factory.bin           (ext4 工厂固件)
-  #   - *-initramfs-kernel.bin       (initramfs 内核)
-  #   - *-kernel.bin                 (内核文件)
-  #   - *-rootfs.bin                 (根文件系统)
-  #   - *.img                        (镜像文件)
-
+# ============================================================================
+# 编译任务
+# ============================================================================
 jobs:
   build:
     runs-on: ubuntu-22.04
+    name: OpenWrt 编译任务
 
     steps:
-      # ========== 第一步：解析仓库和分支 ==========
-      - name: 📦 解析仓库和分支
+      # ==========================================================================
+      # 第一步：解析仓库和分支
+      # ==========================================================================
+      - name: 📦 第一步：解析仓库和分支
         id: parse_repo
         run: |
+          echo "================================================================"
+          echo "📦 开始解析仓库和分支配置..."
+          echo "================================================================"
+          
           INPUT="${{ github.event.inputs.source_branch }}"
           CUSTOM_URL="${{ github.event.inputs.custom_url }}"
           CUSTOM_BRANCH="${{ github.event.inputs.custom_branch }}"
@@ -180,17 +184,6 @@ jobs:
               echo "✅ 配置文件: $CONFIG_FILE"
               ;;
               
-            "DIY2")
-              # 自定义仓库 2（请修改为你需要的仓库地址）
-              REPO_URL="https://github.com/your-custom-repo-2"
-              REPO_DIR="diy2"
-              CONFIG_FILE="configs/diy2.config"
-              echo "✅ 选择的仓库: DIY2"
-              echo "✅ 仓库地址: $REPO_URL"
-              echo "✅ 选择的分支: $BRANCH_NAME"
-              echo "✅ 配置文件: $CONFIG_FILE"
-              ;;
-              
             "custom")
               # 完全自定义仓库
               if [ -z "$CUSTOM_URL" ] || [ -z "$CUSTOM_BRANCH" ]; then
@@ -221,15 +214,27 @@ jobs:
           echo "REPO_DIR=$REPO_DIR" >> $GITHUB_ENV
           echo "REPO_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
           echo "CONFIG_FILE=$CONFIG_FILE" >> $GITHUB_ENV
+          
+          echo "================================================================"
+          echo "✅ 仓库解析完成"
+          echo "================================================================"
 
-      # ========== 第二步：检出当前仓库（获取配置文件、脚本等）==========
-      - name: 🔍 检出当前仓库
+      # ==========================================================================
+      # 第二步：检出当前仓库（获取配置文件、脚本等）
+      # ==========================================================================
+      - name: 🔍 第二步：检出当前仓库
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      # ========== 第三步：安装编译依赖 ==========
-      - name: 🔧 安装编译依赖
+      # ==========================================================================
+      # 第三步：安装编译依赖
+      # ==========================================================================
+      - name: 🔧 第三步：安装编译依赖
         run: |
-          echo "📦 开始安装编译依赖..."
+          echo "================================================================"
+          echo "🔧 开始安装编译依赖..."
+          echo "================================================================"
           
           sudo apt update -y
           sudo apt full-upgrade -y
@@ -241,187 +246,325 @@ jobs:
           libpython3-dev qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip \
           vim wget xmlto xxd zlib1g-dev python3-setuptools
           
+          echo "================================================================"
           echo "✅ 编译依赖安装完成"
+          echo "================================================================"
 
-      # ========== 第四步：克隆源码仓库（智能版本选择） ==========
-      - name: 📥 克隆源码仓库（智能版本选择）
+      # ==========================================================================
+      # 第四步：克隆源码仓库（智能版本选择 - 核心功能）
+      # ==========================================================================
+      - name: 📥 第四步：克隆源码仓库（智能版本选择）
         run: |
-          echo "📦 正在克隆仓库: ${{ env.REPO_URL }}"
+          echo "================================================================"
+          echo "📦 开始克隆源码仓库..."
+          echo "================================================================"
+          echo "📦 仓库地址: ${{ env.REPO_URL }}"
           echo "🌿 仓库目录: ${{ env.REPO_DIR }}"
           echo "🌿 选择的分支/标签: ${{ env.REPO_BRANCH }}"
-          echo "🏷️  指定版本: ${{ github.event.inputs.version_tag }}"
+          echo "🏷️  用户指定版本: ${{ github.event.inputs.version_tag }}"
+          echo ""
           
-          # ========== 步骤 1：解析用户选择的版本号 ==========
-          # 例如：'openwrt-23.05' -> 23.05
-          BASE_VERSION=$(echo "${{ env.REPO_BRANCH }}" | grep -oE 'openwrt-([0-9]+\.[0-9]+)' | cut -d'-' -f2)
-          if [ -z "$BASE_VERSION" ]; then
-            # 如果是直接选择 v23.05.7 这类标签，直接使用
+          # ========== 步骤 1：严格解析主版本号（关键修复！）==========
+          MAJOR=""
+          MINOR=""
+          BASE_VERSION=""
+          
+          # 尝试匹配 openwrt-X.Y 格式（如 openwrt-23.05）
+          if [[ "${{ env.REPO_BRANCH }}" =~ openwrt-([0-9]+)\.([0-9]+) ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            BASE_VERSION="${MAJOR}.${MINOR}"
+            echo "🔍 【版本解析】分支名匹配 openwrt-X.Y 格式"
+            echo "   → 主版本: $MAJOR"
+            echo "   → 次版本: $MINOR"
+            echo "   → 基础版本: $BASE_VERSION"
+          else
+            # 如果是直接指定标签（如 v23.05.7）或分支（如 master）
             BASE_VERSION="${{ env.REPO_BRANCH }}"
+            echo "🔍 【版本解析】未匹配 openwrt-X.Y 格式，使用原始分支名"
+            echo "   → 基础版本: $BASE_VERSION"
+            
+            # 如果是 vX.Y.Z 格式，也提取主次版本用于严格匹配
+            if [[ "$BASE_VERSION" =~ ^v([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
+              MAJOR="${BASH_REMATCH[1]}"
+              MINOR="${BASH_REMATCH[2]}"
+              echo "   → 从标签提取主次版本: $MAJOR.$MINOR"
+            fi
           fi
-          
-          echo "🔍 基础版本号: $BASE_VERSION"
+          echo ""
           
           # ========== 步骤 2：处理用户指定的版本 ==========
           USER_VERSION="${{ github.event.inputs.version_tag }}"
           CLONE_VERSION=""
           
           if [ -n "$USER_VERSION" ]; then
-            echo "💡 检测到用户指定了版本: $USER_VERSION"
+            echo "💡 【用户输入】检测到用户指定了版本: $USER_VERSION"
+            echo ""
             
             # 特殊关键词处理
             if [ "$USER_VERSION" = "latest" ]; then
-              echo "🔍 使用最新正式版..."
+              echo "🔍 【版本选择】使用最新正式版（严格匹配主次版本）..."
               
-              # 获取所有匹配的 tags（带重试）
+              # 严格匹配：v${MAJOR}.${MINOR}.[0-9]+
+              if [ -n "$MAJOR" ] && [ -n "$MINOR" ]; then
+                echo "   → 匹配规则: ^refs/tags/v${MAJOR}\.${MINOR}\.[0-9]+$"
+                
+                # 带重试机制
+                for i in {1..3}; do
+                  TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | \
+                    grep -E "^refs/tags/v${MAJOR}\.${MINOR}\.[0-9]+$" | \
+                    awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr)
+                  if [ -n "$TAGS" ] || [ $i -eq 3 ]; then
+                    break
+                  fi
+                  echo "   ⚠️ 第 $i 次尝试失败，等待 5 秒后重试..."
+                  sleep 5
+                done
+                
+                if [ -n "$TAGS" ]; then
+                  CLONE_VERSION=$(echo "$TAGS" | head -n1)
+                  echo "✅ 【版本选择】选择最新稳定版（严格匹配 $MAJOR.$MINOR）: $CLONE_VERSION"
+                else
+                  echo "❌ 【错误】未找到匹配 $MAJOR.$MINOR 的正式稳定版"
+                  echo "💡 【提示】可用的 tags 列表（严格匹配 $MAJOR.$MINOR）："
+                  git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "^refs/tags/v${MAJOR}\.${MINOR}\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
+                  exit 1
+                fi
+              else
+                echo "⚠️ 无法确定主次版本，使用默认逻辑..."
+                TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr)
+                if [ -n "$TAGS" ]; then
+                  CLONE_VERSION=$(echo "$TAGS" | head -n1)
+                  echo "✅ 【版本选择】选择最新稳定版（宽松匹配）: $CLONE_VERSION"
+                else
+                  CLONE_VERSION="${{ env.REPO_BRANCH }}"
+                  echo "⚠️ 未找到稳定版，使用分支: $CLONE_VERSION"
+                fi
+              fi
+              
+            elif [ "$USER_VERSION" = "branch" ]; then
+              echo "🔍 【版本选择】强制使用分支版本..."
+              CLONE_VERSION="${{ env.REPO_BRANCH }}"
+              echo "✅ 【版本选择】选择分支: $CLONE_VERSION"
+              
+            else
+              # 检查用户指定的版本是否存在（支持直接复制 Tags 版本号）
+              echo "🔍 【版本选择】检查用户指定的版本是否存在..."
+              echo "   → 检查版本: $USER_VERSION"
+              
+              # 直接检查完整 tag（支持 v23.05.6 这种格式）
+              if git ls-remote --exit-code --tags ${{ env.REPO_URL }} "refs/tags/$USER_VERSION" 2>/dev/null; then
+                echo "✅ 【版本选择】版本存在: $USER_VERSION"
+                
+                # 额外检查：tag 指向的 commit 是否有效
+                COMMIT_HASH=$(git ls-remote ${{ env.REPO_URL }} "refs/tags/$USER_VERSION" | awk '{print $1}')
+                if [ -n "$COMMIT_HASH" ] && [ "$COMMIT_HASH" != "0000000000000000000000000000000000000000" ]; then
+                  echo "   → tag 指向有效 commit: $COMMIT_HASH"
+                  CLONE_VERSION="$USER_VERSION"
+                else
+                  echo "⚠️ 【警告】tag $USER_VERSION 指向无效 commit（可能是 lightweight tag）"
+                  echo "   → 尝试直接克隆..."
+                  
+                  # 尝试直接克隆，失败则回退到分支
+                  if git clone -b "$USER_VERSION" --single-branch --depth=1 ${{ env.REPO_URL }} temp_clone 2>/dev/null; then
+                    rm -rf temp_clone
+                    CLONE_VERSION="$USER_VERSION"
+                    echo "✅ 【版本选择】成功克隆 tag: $USER_VERSION"
+                  else
+                    echo "❌ 【错误】tag $USER_VERSION 克隆失败"
+                    echo "💡 【提示】将回退到分支版本: ${{ env.REPO_BRANCH }}"
+                    CLONE_VERSION="${{ env.REPO_BRANCH }}"
+                  fi
+                fi
+              else
+                echo "❌ 【错误】指定的版本不存在: $USER_VERSION"
+                echo "💡 【提示】可用的 tags 列表（严格匹配 $MAJOR.$MINOR）："
+                if [ -n "$MAJOR" ] && [ -n "$MINOR" ]; then
+                  git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "^refs/tags/v${MAJOR}\.${MINOR}\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
+                else
+                  echo "   → 所有可用 tags："
+                  git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
+                fi
+                exit 1
+              fi
+            fi
+            
+          else
+            # ========== 步骤 3：自动选择最新正式版（默认行为，严格主次版本匹配） ==========
+            echo "💡 【用户输入】未指定版本，自动选择最新正式版（严格匹配主次版本）..."
+            echo ""
+            
+            # 如果能解析出 MAJOR/MINOR，严格匹配
+            if [ -n "$MAJOR" ] && [ -n "$MINOR" ]; then
+              echo "🔍 【版本选择】匹配规则: ^refs/tags/v${MAJOR}\.${MINOR}\.[0-9]+$"
+              
+              # 带重试机制
               for i in {1..3}; do
                 TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | \
-                  grep -E "refs/tags/v($BASE_VERSION\.[0-9]+|[0-9]+\.[0-9]+\.[0-9]+)$" | \
+                  grep -E "^refs/tags/v${MAJOR}\.${MINOR}\.[0-9]+$" | \
                   awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr)
                 if [ -n "$TAGS" ] || [ $i -eq 3 ]; then
                   break
                 fi
-                echo "⚠️ 第 $i 次尝试失败，等待 5 秒后重试..."
+                echo "   ⚠️ 第 $i 次尝试失败，等待 5 秒后重试..."
                 sleep 5
               done
               
               if [ -n "$TAGS" ]; then
                 CLONE_VERSION=$(echo "$TAGS" | head -n1)
-                echo "✅ 选择最新稳定版: $CLONE_VERSION"
+                echo "✅ 【版本选择】自动选择最新稳定版（严格匹配 $MAJOR.$MINOR）: $CLONE_VERSION"
               else
-                echo "❌ 错误：未找到任何正式稳定版 (v$BASE_VERSION.Z)"
-                echo "💡 可用的 tags 列表："
-                git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
-                exit 1
+                echo "⚠️ 【警告】未发现 $MAJOR.$MINOR 的正式稳定版 (v$MAJOR.$MINOR.Z)"
+                echo "💡 【提示】将使用分支版本: ${{ env.REPO_BRANCH }}"
+                CLONE_VERSION="${{ env.REPO_BRANCH }}"
               fi
-              
-            elif [ "$USER_VERSION" = "branch" ]; then
-              echo "🔍 强制使用分支版本..."
-              CLONE_VERSION="${{ env.REPO_BRANCH }}"
-              echo "✅ 选择分支: $CLONE_VERSION"
-              
             else
-              # 检查用户指定的版本是否存在
-              echo "🔍 检查用户指定的版本是否存在..."
-              
-              # 检查是否为完整 tag（如 v23.05.7）
-              if git ls-remote --exit-code --tags ${{ env.REPO_URL }} "refs/tags/$USER_VERSION" 2>/dev/null; then
-                echo "✅ 版本存在: $USER_VERSION"
-                CLONE_VERSION="$USER_VERSION"
+              # 无法解析主次版本（如 master 分支），使用宽松匹配
+              echo "⚠️ 【版本选择】无法解析主次版本，使用宽松匹配..."
+              TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr)
+              if [ -n "$TAGS" ]; then
+                CLONE_VERSION=$(echo "$TAGS" | head -n1)
+                echo "✅ 【版本选择】选择最新稳定版（宽松匹配）: $CLONE_VERSION"
               else
-                echo "❌ 错误：指定的版本不存在: $USER_VERSION"
-                echo "💡 可用的 tags 列表（匹配 $BASE_VERSION）："
-                git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v$BASE_VERSION\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
-                echo ""
-                echo "💡 所有可用的 tags 列表："
-                git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
-                exit 1
+                echo "⚠️ 未找到稳定版，使用分支: ${{ env.REPO_BRANCH }}"
+                CLONE_VERSION="${{ env.REPO_BRANCH }}"
               fi
-            fi
-            
-          else
-            # ========== 步骤 3：自动选择最新正式版（默认行为） ==========
-            echo "💡 未指定版本，自动选择最新正式版..."
-            
-            # 获取所有匹配的 tags（带重试）
-            for i in {1..3}; do
-              TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | \
-                grep -E "refs/tags/v($BASE_VERSION\.[0-9]+|[0-9]+\.[0-9]+\.[0-9]+)$" | \
-                awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr)
-              if [ -n "$TAGS" ] || [ $i -eq 3 ]; then
-                break
-              fi
-              echo "⚠️ 第 $i 次尝试失败，等待 5 秒后重试..."
-              sleep 5
-            done
-            
-            if [ -n "$TAGS" ]; then
-              CLONE_VERSION=$(echo "$TAGS" | head -n1)
-              echo "✅ 自动选择最新稳定版: $CLONE_VERSION"
-            else
-              echo "⚠️ 未发现正式稳定版 (v$BASE_VERSION.Z)"
-              echo "💡 将使用分支版本: ${{ env.REPO_BRANCH }}"
-              CLONE_VERSION="${{ env.REPO_BRANCH }}"
             fi
           fi
           
-          # ========== 步骤 4：执行克隆 ==========
           echo ""
-          echo "🔨 执行克隆命令..."
+          echo "================================================================"
+          echo "🔨 开始执行克隆命令..."
+          echo "================================================================"
           echo "📍 克隆版本: $CLONE_VERSION"
+          
+          # ========== 步骤 4：执行克隆（带错误处理和回退机制）==========
+          CLONE_SUCCESS=false
           
           # 判断是标签还是分支
           if [[ "$CLONE_VERSION" == v* ]]; then
-            echo "🏷️  检测到标签版本，使用优化克隆策略..."
-            git clone -b "$CLONE_VERSION" \
+            echo "🏷️  【克隆策略】检测到标签版本，使用优化克隆策略..."
+            
+            # 尝试克隆 tag，失败则回退到分支
+            if git clone -b "$CLONE_VERSION" \
               --single-branch \
               --depth=1 \
               ${{ env.REPO_URL }} \
-              ${{ env.REPO_DIR }}
+              ${{ env.REPO_DIR }} 2>&1; then
+              CLONE_SUCCESS=true
+              echo "✅ 【克隆结果】成功克隆 tag: $CLONE_VERSION"
+            else
+              echo "❌ 【克隆失败】tag $CLONE_VERSION 克隆失败"
+              echo "💡 【自动回退】尝试回退到分支版本: ${{ env.REPO_BRANCH }}"
+              
+              # 清理失败的克隆
+              rm -rf ${{ env.REPO_DIR }}
+              
+              # 回退到分支
+              if git clone -b "${{ env.REPO_BRANCH }}" \
+                --single-branch \
+                --depth=1 \
+                ${{ env.REPO_URL }} \
+                ${{ env.REPO_DIR }} 2>&1; then
+                CLONE_SUCCESS=true
+                CLONE_VERSION="${{ env.REPO_BRANCH }}"
+                echo "✅ 【克隆结果】成功回退到分支: $CLONE_VERSION"
+              else
+                echo "❌ 【克隆失败】分支克隆也失败！"
+                exit 1
+              fi
+            fi
           else
-            echo "🌿 检测到分支版本，使用标准克隆策略..."
-            git clone -b "$CLONE_VERSION" \
+            echo "🌿 【克隆策略】检测到分支版本，使用标准克隆策略..."
+            
+            if git clone -b "$CLONE_VERSION" \
               --single-branch \
               --depth=1 \
               ${{ env.REPO_URL }} \
-              ${{ env.REPO_DIR }}
+              ${{ env.REPO_DIR }} 2>&1; then
+              CLONE_SUCCESS=true
+              echo "✅ 【克隆结果】成功克隆分支: $CLONE_VERSION"
+            else
+              echo "❌ 【克隆失败】分支克隆失败！"
+              exit 1
+            fi
           fi
           
-          echo "✅ 源码克隆完成"
-          ls -la
-          
-          # ========== 验证克隆结果 ==========
-          cd ${{ env.REPO_DIR }}
-          echo ""
-          echo "🔍 验证克隆结果："
-          echo "📍 当前 HEAD 指向："
-          git log -1 --oneline
-          echo ""
-          echo "📍 检查是否为标签："
-          git tag --points-at HEAD || echo "⚠️ 当前不是标签（可能是分支）"
-          echo ""
-          echo "📍 检查版本文件："
-          if [ -f "package/base-files/files/etc/openwrt_release" ]; then
-            cat package/base-files/files/etc/openwrt_release
+          if [ "$CLONE_SUCCESS" = true ]; then
+            echo ""
+            echo "================================================================"
+            echo "✅ 源码克隆完成！"
+            echo "================================================================"
+            ls -la
+            
+            # ========== 验证克隆结果 ==========
+            cd ${{ env.REPO_DIR }}
+            echo ""
+            echo "================================================================"
+            echo "🔍 验证克隆结果："
+            echo "================================================================"
+            echo "📍 当前 HEAD 指向："
+            git log -1 --oneline
+            echo ""
+            echo "📍 检查是否为标签："
+            git tag --points-at HEAD || echo "⚠️ 当前不是标签（可能是分支）"
+            echo ""
+            echo "📍 检查版本文件："
+            if [ -f "package/base-files/files/etc/openwrt_release" ]; then
+              cat package/base-files/files/etc/openwrt_release
+            else
+              echo "⚠️ openwrt_release 文件不存在"
+            fi
           else
-            echo "⚠️ openwrt_release 文件不存在"
+            echo "❌ 克隆失败，退出"
+            exit 1
           fi
 
-      # ========== 第五步：SSH远程配置.config文件（可选）==========
-      - name: 🐞 SSH远程配置.config文件（15分钟有效时间）
+      # ==========================================================================
+      # 第五步：SSH 远程配置 .config 文件（可选）
+      # ==========================================================================
+      - name: 🐞 第五步：SSH 远程配置 .config 文件（15分钟有效）
         if: ${{ github.event.inputs.enable_ssh_debug == 'true' }}
         uses: mxschmitt/action-tmate@v3
         with:
           timeout-minutes: 15
-          limit-access-to-actor: false  # 不需要加密，任何人都可以访问
+          limit-access-to-actor: false
 
-      # ========== 第六步：复制配置文件并重命名为 .config ==========
-      - name: 📄 复制配置文件并重命名为 .config
+      # ==========================================================================
+      # 第六步：复制配置文件并重命名为 .config
+      # ==========================================================================
+      - name: 📄 第六步：复制配置文件并重命名为 .config
         run: |
+          echo "================================================================"
+          echo "📄 开始配置 .config 文件..."
+          echo "================================================================"
+          
           cd ${{ env.REPO_DIR }}
           
-          # 检查是否启用了SSH调试模式
+          # 检查是否启用了 SSH 调试模式
           if [ "${{ github.event.inputs.enable_ssh_debug }}" = "true" ]; then
-            echo "🔧 SSH调试模式已启用，检查源码目录中是否已存在.config文件..."
+            echo "🔧 【配置模式】SSH 调试模式已启用"
+            echo "   → 检查源码目录中是否已存在 .config 文件..."
             
-            # 检查SSH会话结束后是否在源码目录中生成了.config文件
+            # 检查 SSH 会话结束后是否在源码目录中生成了 .config 文件
             if [ -f ".config" ]; then
-              echo "✅ 检测到用户通过SSH配置的.config文件"
-              echo "📄 .config文件大小: $(wc -c < .config) bytes"
-              echo "💡 注意：configs目录中的配置文件已被忽略"
+              echo "✅ 【配置结果】检测到用户通过 SSH 配置的 .config 文件"
+              echo "   → .config 文件大小: $(wc -c < .config) bytes"
+              echo "💡 【提示】configs 目录中的配置文件已被忽略"
             else
-              echo "❌ 错误：SSH会话结束但未找到.config文件"
-              echo "💡 请在SSH会话中进入源码目录并运行 'make menuconfig' 配置并保存"
-              echo "💡 源码目录路径: /home/runner/work/$(basename $(pwd))/$(basename $(pwd))/${{ env.REPO_DIR }}"
-              echo "💡 无限期保活命令: while true; do sleep 60; done"
+              echo "❌ 【错误】SSH 会话结束但未找到 .config 文件"
+              echo "💡 【提示】请在 SSH 会话中进入源码目录并运行 'make menuconfig' 配置并保存"
+              echo "   → 源码目录路径: /home/runner/work/$(basename $(pwd))/$(basename $(pwd))/${{ env.REPO_DIR }}"
+              echo "   → 无限期保活命令: while true; do sleep 60; done"
               exit 1
             fi
           else
-            echo "🔧 使用configs目录中的配置文件"
+            echo "🔧 【配置模式】使用 configs 目录中的配置文件"
             
             # 检查配置文件是否存在
             if [ ! -f "../${{ env.CONFIG_FILE }}" ]; then
-              echo "❌ 错误：配置文件不存在: ${{ env.CONFIG_FILE }}"
-              echo "💡 请确保 configs/ 目录下有对应的配置文件"
+              echo "❌ 【错误】配置文件不存在: ${{ env.CONFIG_FILE }}"
+              echo "💡 【提示】请确保 configs/ 目录下有对应的配置文件"
               echo "📁 configs/ 目录内容:"
               ls -la ../configs/
               exit 1
@@ -429,7 +572,7 @@ jobs:
             
             # 强制删除源码仓库自带的 .config（如果有）
             if [ -f ".config" ]; then
-              echo "⚠️ 检测到源码仓库自带的 .config，正在删除..."
+              echo "⚠️ 【警告】检测到源码仓库自带的 .config，正在删除..."
               rm -f .config
             fi
             
@@ -438,34 +581,46 @@ jobs:
             
             # 验证 .config 文件是否创建成功
             if [ -f ".config" ]; then
-              echo "✅ 配置文件已成功复制并重命名为 .config"
-              echo "📄 配置文件来源: ${{ env.CONFIG_FILE }}"
-              echo "📄 目标文件: .config"
-              echo "📄 配置文件大小: $(wc -c < .config) bytes"
-              echo "📄 配置文件内容预览（前20行）:"
+              echo "✅ 【配置结果】配置文件已成功复制并重命名为 .config"
+              echo "   → 配置文件来源: ${{ env.CONFIG_FILE }}"
+              echo "   → 目标文件: .config"
+              echo "   → 配置文件大小: $(wc -c < .config) bytes"
+              echo "   → 配置文件内容预览（前 20 行）:"
               head -20 .config
             else
-              echo "❌ 错误：.config 文件创建失败！"
+              echo "❌ 【错误】.config 文件创建失败！"
               exit 1
             fi
           fi
 
-      # ========== 第七步：执行 DIY 脚本 Part 1（可选）==========
-      - name: 🔨 执行 DIY 脚本 Part 1
+      # ==========================================================================
+      # 第七步：执行 DIY 脚本 Part 1（可选）
+      # ==========================================================================
+      - name: 🔨 第七步：执行 DIY 脚本 Part 1
         if: env.DIY_P1_SH != ''
         run: |
+          echo "================================================================"
+          echo "🔧 开始执行 DIY 脚本 Part 1..."
+          echo "================================================================"
+          
           cd ${{ env.REPO_DIR }}
           if [ -f "../${{ env.DIY_P1_SH }}" ]; then
             echo "🔧 执行 DIY 脚本 Part 1: ${{ env.DIY_P1_SH }}"
             chmod +x "../${{ env.DIY_P1_SH }}"
             bash "../${{ env.DIY_P1_SH }}"
           else
-            echo "⚠️ DIY 脚本 Part 1 不存在: ${{ env.DIY_P1_SH }}"
+            echo "⚠️ 【警告】DIY 脚本 Part 1 不存在: ${{ env.DIY_P1_SH }}"
           fi
 
-      # ========== 第八步：更新和安装 feeds ==========
-      - name: 🔄 更新和安装 feeds
+      # ==========================================================================
+      # 第八步：更新和安装 feeds
+      # ==========================================================================
+      - name: 🔄 第八步：更新和安装 feeds
         run: |
+          echo "================================================================"
+          echo "🔄 开始更新和安装 feeds..."
+          echo "================================================================"
+          
           cd ${{ env.REPO_DIR }}
           
           echo "🔄 开始更新 feeds..."
@@ -474,64 +629,89 @@ jobs:
           echo "📦 开始安装 feeds..."
           ./scripts/feeds install -a
           
+          echo "================================================================"
           echo "✅ Feeds 更新和安装完成"
+          echo "================================================================"
 
-      # ========== 第九步：执行 DIY 脚本 Part 2（可选）==========
-      - name: 🔨 执行 DIY 脚本 Part 2
+      # ==========================================================================
+      # 第九步：执行 DIY 脚本 Part 2（可选）
+      # ==========================================================================
+      - name: 🔨 第九步：执行 DIY 脚本 Part 2
         if: env.DIY_P2_SH != ''
         run: |
+          echo "================================================================"
+          echo "🔧 开始执行 DIY 脚本 Part 2..."
+          echo "================================================================"
+          
           cd ${{ env.REPO_DIR }}
           if [ -f "../${{ env.DIY_P2_SH }}" ]; then
             echo "🔧 执行 DIY 脚本 Part 2: ${{ env.DIY_P2_SH }}"
             chmod +x "../${{ env.DIY_P2_SH }}"
             bash "../${{ env.DIY_P2_SH }}"
           else
-            echo "⚠️ DIY 脚本 Part 2 不存在: ${{ env.DIY_P2_SH }}"
+            echo "⚠️ 【警告】DIY 脚本 Part 2 不存在: ${{ env.DIY_P2_SH }}"
           fi
 
-      # ========== 第十步：配置编译选项（使用 .config）==========
-      - name: ⚙️ 配置编译选项
+      # ==========================================================================
+      # 第十步：配置编译选项（使用 .config）
+      # ==========================================================================
+      - name: ⚙️ 第十步：配置编译选项
         run: |
+          echo "================================================================"
+          echo "⚙️  开始配置编译选项..."
+          echo "================================================================"
+          
           cd ${{ env.REPO_DIR }}
           
           # 检查 .config 文件是否存在
           if [ -f ".config" ]; then
-            echo "⚙️ 使用提供的 .config 文件配置编译选项..."
-            echo "📄 .config 文件大小: $(wc -c < .config) bytes"
+            echo "⚙️  【配置模式】使用提供的 .config 文件配置编译选项..."
+            echo "   → .config 文件大小: $(wc -c < .config) bytes"
             
             # 生成 defconfig（根据 .config 生成完整的配置）
             make defconfig
             
+            echo "================================================================"
             echo "✅ 编译配置完成"
-            echo "📄 .config 文件验证通过"
+            echo "   → .config 文件验证通过"
+            echo "================================================================"
           else
-            echo "⚠️ 警告：未找到 .config 文件，将使用默认配置"
-            echo "💡 请检查 configs/ 目录中是否有对应的配置文件"
+            echo "⚠️ 【警告】未找到 .config 文件，将使用默认配置"
+            echo "💡 【提示】请检查 configs/ 目录中是否有对应的配置文件"
           fi
 
-      # ========== 第十一步：编译 OpenWrt ==========
-      - name: 🏗️ 编译 OpenWrt
+      # ==========================================================================
+      # 第十一步：编译 OpenWrt
+      # ==========================================================================
+      - name: 🏗️ 第十一步：编译 OpenWrt
         run: |
+          echo "================================================================"
+          echo "🔨 开始编译 OpenWrt..."
+          echo "================================================================"
+          
           cd ${{ env.REPO_DIR }}
           
           # 检查 .config 是否存在
           if [ ! -f ".config" ]; then
-            echo "❌ 错误：缺少 .config 文件，无法继续编译！"
-            echo "💡 请确保在 configs/ 目录中有对应的配置文件"
+            echo "❌ 【错误】缺少 .config 文件，无法继续编译！"
+            echo "💡 【提示】请确保在 configs/ 目录中有对应的配置文件"
             exit 1
           fi
           
           # 开始编译
-          echo "🔨 开始编译 OpenWrt..."
           echo "💻 使用 CPU 核心数: $(nproc)"
           echo "📄 当前配置文件: .config"
           
           make -j$(nproc) || make -j1 V=s
           
+          echo "================================================================"
           echo "✅ OpenWrt 编译完成！"
+          echo "================================================================"
 
-      # ========== 第十二步：上传SSH生成的.config文件（仅当启用SSH时）==========
-      - name: 💾 上传SSH生成的.config文件（仅当启用SSH调试模式时）
+      # ==========================================================================
+      # 第十二步：上传 SSH 生成的 .config 文件（仅当启用 SSH 时）
+      # ==========================================================================
+      - name: 💾 第十二步：上传 SSH 生成的 .config 文件
         if: ${{ github.event.inputs.enable_ssh_debug == 'true' }}
         uses: actions/upload-artifact@v4
         with:
@@ -540,8 +720,10 @@ jobs:
           retention-days: 7
         continue-on-error: true
 
-      # ========== 第十三步：上传刷机包文件（只上传刷机包，不上传ipk等文件）==========
-      - name: 📤 上传刷机包文件（仅刷机包，不含ipk等）
+      # ==========================================================================
+      # 第十三步：上传刷机包文件（只上传刷机包，不上传 ipk 等文件）
+      # ==========================================================================
+      - name: 📤 第十三步：上传刷机包文件（仅刷机包）
         if: env.UPLOAD_FIRMWARE == 'true'
         uses: actions/upload-artifact@v4
         with:
@@ -559,8 +741,10 @@ jobs:
           retention-days: 7
         continue-on-error: true
 
-      # ========== 第十四步：上传 bin 目录（可选）==========
-      - name: 📤 上传 bin 目录
+      # ==========================================================================
+      # 第十四步：上传 bin 目录（可选）
+      # ==========================================================================
+      - name: 📤 第十四步：上传 bin 目录
         if: env.UPLOAD_BIN_DIR == 'true'
         uses: actions/upload-artifact@v4
         with:
@@ -568,8 +752,10 @@ jobs:
           path: ${{ env.REPO_DIR }}/bin
           retention-days: 7
 
-      # ========== 第十五步：发布到 Release（可选）==========
-      - name: 🚀 发布到 Release
+      # ==========================================================================
+      # 第十五步：发布到 Release（可选）
+      # ==========================================================================
+      - name: 🚀 第十五步：发布到 Release
         if: env.UPLOAD_RELEASE == 'true' && github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
