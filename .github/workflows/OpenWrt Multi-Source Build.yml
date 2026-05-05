@@ -7,11 +7,13 @@
 #   ✅ Tags 版本直接复制使用（如 v23.05.6）
 #   ✅ 支持 lightweight tag（轻量级标签）
 #   ✅ 自动回退机制（tag 无效时回退到分支）
-#   ✅ SSH 远程配置 .config 文件
 #   ✅ 完整错误提示和可用版本列表
 #   ✅ 详细日志输出（新手友好）
+#   ✅ 精确安装 .config 中指定的软件包（修复配置文件软件包未安装问题）
+#   ✅ 添加 make download 步骤（下载 .config 中要求的包）
+#   ✅ 修复 .config 文件覆盖逻辑（强制覆盖库自带的 .config）
 # ============================================================================
-name: OpenWrt 多源码仓库编译系统（智能版本选择）
+name: OpenWrt 多源码仓库编译系统
 
 # ============================================================================
 # 触发方式：手动触发（Run workflow）
@@ -96,7 +98,7 @@ on:
         default: false
         # 使用说明：
         #   - 启用后：提供 15 分钟 SSH 连接，可远程配置 .config
-        #   - 禁用后：使用 configs/ 目录中的配置文件
+        #   - 禁用后：使用 configs/ 目录中的配置文件（会覆盖库自带的 .config）
 
 # ============================================================================
 # 环境变量配置
@@ -500,82 +502,9 @@ jobs:
           fi
 
       # ==========================================================================
-      # 第五步：SSH 远程配置 .config 文件（可选）
+      # 第五步：执行 DIY 脚本 Part 1（可选）
       # ==========================================================================
-      - name: 🐞 第五步：SSH 远程配置 .config 文件（15分钟有效）
-        if: ${{ github.event.inputs.enable_ssh_debug == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        with:
-          timeout-minutes: 15
-          limit-access-to-actor: false
-
-      # ==========================================================================
-      # 第六步：复制配置文件并重命名为 .config
-      # ==========================================================================
-      - name: 📄 第六步：复制配置文件并重命名为 .config
-        run: |
-          echo "================================================================"
-          echo "📄 开始配置 .config 文件..."
-          echo "================================================================"
-          
-          cd ${{ env.REPO_DIR }}
-          
-          # 检查是否启用了 SSH 调试模式
-          if [ "${{ github.event.inputs.enable_ssh_debug }}" = "true" ]; then
-            echo "🔧 【配置模式】SSH 调试模式已启用"
-            echo "   → 检查源码目录中是否已存在 .config 文件..."
-            
-            # 检查 SSH 会话结束后是否在源码目录中生成了 .config 文件
-            if [ -f ".config" ]; then
-              echo "✅ 【配置结果】检测到用户通过 SSH 配置的 .config 文件"
-              echo "   → .config 文件大小: $(wc -c < .config) bytes"
-              echo "💡 【提示】configs 目录中的配置文件已被忽略"
-            else
-              echo "❌ 【错误】SSH 会话结束但未找到 .config 文件"
-              echo "💡 【提示】请在 SSH 会话中进入源码目录并运行 'make menuconfig' 配置并保存"
-              echo "   → 源码目录路径: /home/runner/work/$(basename $(pwd))/$(basename $(pwd))/${{ env.REPO_DIR }}"
-              echo "   → 无限期保活命令: while true; do sleep 60; done"
-              exit 1
-            fi
-          else
-            echo "🔧 【配置模式】使用 configs 目录中的配置文件"
-            
-            # 检查配置文件是否存在
-            if [ ! -f "../${{ env.CONFIG_FILE }}" ]; then
-              echo "❌ 【错误】配置文件不存在: ${{ env.CONFIG_FILE }}"
-              echo "💡 【提示】请确保 configs/ 目录下有对应的配置文件"
-              echo "📁 configs/ 目录内容:"
-              ls -la ../configs/
-              exit 1
-            fi
-            
-            # 强制删除源码仓库自带的 .config（如果有）
-            if [ -f ".config" ]; then
-              echo "⚠️ 【警告】检测到源码仓库自带的 .config，正在删除..."
-              rm -f .config
-            fi
-            
-            # 复制配置文件并重命名为 .config（编译程序只认这个文件名）
-            cp -f "../${{ env.CONFIG_FILE }}" .config
-            
-            # 验证 .config 文件是否创建成功
-            if [ -f ".config" ]; then
-              echo "✅ 【配置结果】配置文件已成功复制并重命名为 .config"
-              echo "   → 配置文件来源: ${{ env.CONFIG_FILE }}"
-              echo "   → 目标文件: .config"
-              echo "   → 配置文件大小: $(wc -c < .config) bytes"
-              echo "   → 配置文件内容预览（前 20 行）:"
-              head -20 .config
-            else
-              echo "❌ 【错误】.config 文件创建失败！"
-              exit 1
-            fi
-          fi
-
-      # ==========================================================================
-      # 第七步：执行 DIY 脚本 Part 1（可选）
-      # ==========================================================================
-      - name: 🔨 第七步：执行 DIY 脚本 Part 1
+      - name: 🔨 第五步：执行 DIY 脚本 Part 1
         if: env.DIY_P1_SH != ''
         run: |
           echo "================================================================"
@@ -592,9 +521,9 @@ jobs:
           fi
 
       # ==========================================================================
-      # 第八步：更新和安装 feeds
+      # 第六步：更新和安装 feeds
       # ==========================================================================
-      - name: 🔄 第八步：更新和安装 feeds
+      - name: 🔄 第六步：更新和安装 feeds
         run: |
           echo "================================================================"
           echo "🔄 开始更新和安装 feeds..."
@@ -605,7 +534,7 @@ jobs:
           echo "🔄 开始更新 feeds..."
           ./scripts/feeds update -a
           
-          echo "📦 开始安装 feeds..."
+          echo "📦 开始安装 feeds（基础安装）..."
           ./scripts/feeds install -a
           
           echo "================================================================"
@@ -613,9 +542,9 @@ jobs:
           echo "================================================================"
 
       # ==========================================================================
-      # 第九步：执行 DIY 脚本 Part 2（可选）
+      # 第七步：执行 DIY 脚本 Part 2（可选）
       # ==========================================================================
-      - name: 🔨 第九步：执行 DIY 脚本 Part 2
+      - name: 🔨 第七步：执行 DIY 脚本 Part 2
         if: env.DIY_P2_SH != ''
         run: |
           echo "================================================================"
@@ -632,9 +561,230 @@ jobs:
           fi
 
       # ==========================================================================
-      # 第十步：配置编译选项（使用 .config）
+      # 第八步：配置 .config 文件（关键修复：强制覆盖库自带的 .config）
       # ==========================================================================
-      - name: ⚙️ 第十步：配置编译选项
+      - name: 📄 第八步：配置 .config 文件
+        run: |
+          echo "================================================================"
+          echo "📄 开始配置 .config 文件..."
+          echo "================================================================"
+          
+          cd ${{ env.REPO_DIR }}
+          
+          # ========== 关键逻辑：判断是否启用 SSH ==========
+          if [ "${{ github.event.inputs.enable_ssh_debug }}" = "true" ]; then
+            # ========== 模式 1：启用 SSH ==========
+            echo "🔧 【配置模式】启用 SSH 远程配置模式"
+            echo "   → 将进入 SSH 会话，用户可手动配置 .config"
+            echo "   → SSH 会话结束后，将直接使用 .config 文件"
+            echo "   → 注意：库自带的 .config 将被保留，用户可在 SSH 中修改"
+            
+            # 检查库自带的 .config 是否存在
+            if [ -f ".config" ]; then
+              echo "✅ 检测到库自带的 .config 文件"
+              echo "   → 文件大小: $(wc -c < .config) bytes"
+              echo "   → 用户可在 SSH 会话中修改此文件"
+            else
+              echo "⚠️ 库中没有 .config 文件"
+              echo "   → SSH 会话中需要用户手动创建"
+            fi
+            
+          else
+            # ========== 模式 2：不启用 SSH（使用 configs/ 中的配置）==========
+            echo "🔧 【配置模式】使用 configs/ 目录中的配置文件"
+            echo "   → 将强制覆盖库自带的 .config"
+            
+            # 检查 configs/ 中的配置文件是否存在
+            if [ ! -f "../${{ env.CONFIG_FILE }}" ]; then
+              echo "❌ 【错误】配置文件不存在: ${{ env.CONFIG_FILE }}"
+              echo "💡 【提示】请确保 configs/ 目录下有对应的配置文件"
+              echo "📁 configs/ 目录内容:"
+              ls -la ../configs/
+              exit 1
+            fi
+            
+            # ========== 关键修复：删除库自带的 .config ==========
+            if [ -f ".config" ]; then
+              echo "⚠️ 【警告】检测到库自带的 .config，正在删除..."
+              rm -f .config
+              echo "✅ 库自带的 .config 已删除"
+            else
+              echo "ℹ️ 库中没有自带的 .config"
+            fi
+            
+            # ========== 复制 configs/ 中的配置并重命名为 .config ==========
+            echo "📦 复制配置文件: ${{ env.CONFIG_FILE }} → .config"
+            cp -f "../${{ env.CONFIG_FILE }}" .config
+            
+            # 验证 .config 文件是否创建成功
+            if [ -f ".config" ]; then
+              CONFIG_SIZE=$(wc -c < .config)
+              echo "✅ 【配置结果】配置文件已成功复制并重命名为 .config"
+              echo "   → 配置文件来源: ${{ env.CONFIG_FILE }}"
+              echo "   → 目标文件: .config"
+              echo "   → 配置文件大小: $CONFIG_SIZE bytes"
+              
+              # 显示配置文件预览
+              echo "   → 配置文件内容预览（前 20 行）:"
+              head -20 .config
+              
+              # 统计配置项数量
+              CONFIG_COUNT=$(grep -c "^CONFIG_" .config || echo "0")
+              echo "   → 配置项总数: $CONFIG_COUNT"
+              
+              # 检查关键配置
+              echo "   → 检查关键软件包配置:"
+              if grep -q "CONFIG_PACKAGE_luci-app-ttyd=y" .config; then
+                echo "     ✅ luci-app-ttyd 已勾选"
+              else
+                echo "     ⚠️  luci-app-ttyd 未勾选"
+              fi
+              
+              if grep -q "CONFIG_TARGET.*=y" .config; then
+                TARGET=$(grep "CONFIG_TARGET.*=y" .config | head -1 | cut -d= -f1)
+                echo "     ✅ 目标平台: $TARGET"
+              fi
+            else
+              echo "❌ 【错误】.config 文件创建失败！"
+              exit 1
+            fi
+          fi
+          
+          echo "================================================================"
+          echo "✅ .config 配置完成"
+          echo "================================================================"
+
+      # ==========================================================================
+      # 第九步：SSH 远程配置 .config 文件（可选）
+      # ==========================================================================
+      - name: 🐞 第九步：SSH 远程配置 .config 文件（15分钟有效）
+        if: ${{ github.event.inputs.enable_ssh_debug == 'true' }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          timeout-minutes: 15
+          limit-access-to-actor: false
+
+      # ==========================================================================
+      # 第十步：验证 SSH 配置结果（仅当启用 SSH 时）
+      # ==========================================================================
+      - name: ✅ 第十步：验证 SSH 配置结果
+        if: ${{ github.event.inputs.enable_ssh_debug == 'true' }}
+        run: |
+          echo "================================================================"
+          echo "✅ 验证 SSH 配置结果..."
+          echo "================================================================"
+          
+          cd ${{ env.REPO_DIR }}
+          
+          # 检查 SSH 会话结束后是否在源码目录中生成了 .config 文件
+          if [ -f ".config" ]; then
+            CONFIG_SIZE=$(wc -c < .config)
+            echo "✅ 【配置结果】检测到用户通过 SSH 配置的 .config 文件"
+            echo "   → .config 文件大小: $CONFIG_SIZE bytes"
+            echo "   → 配置文件内容预览（前 20 行）:"
+            head -20 .config
+            
+            # 统计配置项数量
+            CONFIG_COUNT=$(grep -c "^CONFIG_" .config || echo "0")
+            echo "   → 配置项总数: $CONFIG_COUNT"
+            
+            # 检查关键配置
+            echo "   → 检查关键软件包配置:"
+            if grep -q "CONFIG_PACKAGE_luci-app-ttyd=y" .config; then
+              echo "     ✅ luci-app-ttyd 已勾选"
+            else
+              echo "     ⚠️  luci-app-ttyd 未勾选"
+            fi
+            
+            if grep -q "CONFIG_TARGET.*=y" .config; then
+              TARGET=$(grep "CONFIG_TARGET.*=y" .config | head -1 | cut -d= -f1)
+              echo "     ✅ 目标平台: $TARGET"
+            fi
+            
+            echo "💡 【提示】configs 目录中的配置文件已被忽略"
+          else
+            echo "❌ 【错误】SSH 会话结束但未找到 .config 文件"
+            echo "💡 【提示】请在 SSH 会话中进入源码目录并运行 'make menuconfig' 配置并保存"
+            echo "   → 源码目录路径: $PWD"
+            echo "   → 无限期保活命令: while true; do sleep 60; done"
+            exit 1
+          fi
+          
+          echo "================================================================"
+          echo "✅ SSH 配置验证完成"
+          echo "================================================================"
+
+      # ==========================================================================
+      # 第十一步：精确安装 .config 中指定的软件包
+      # ==========================================================================
+      - name: 📦 第十一步：精确安装 .config 中指定的软件包
+        run: |
+          echo "================================================================"
+          echo "📦 精确安装 .config 中指定的软件包..."
+          echo "================================================================"
+          
+          cd ${{ env.REPO_DIR }}
+          
+          # 检查 .config 是否存在
+          if [ ! -f ".config" ]; then
+            echo "❌ 【错误】缺少 .config 文件，无法继续！"
+            exit 1
+          fi
+          
+          # 读取 .config 中所有需要安装的软件包
+          PACKAGES=$(grep "^CONFIG_PACKAGE_.*=y" .config | cut -d= -f1 | sed 's/CONFIG_PACKAGE_//')
+          
+          PACKAGE_COUNT=$(echo "$PACKAGES" | wc -l)
+          echo "🔍 检测到 $PACKAGE_COUNT 个软件包需要安装"
+          
+          # 显示前 20 个软件包
+          echo "📦 需要安装的软件包（前 20 个）："
+          echo "$PACKAGES" | head -20
+          if [ $PACKAGE_COUNT -gt 20 ]; then
+            echo "..."
+            echo "   （共 $PACKAGE_COUNT 个软件包）"
+          fi
+          
+          # 精确安装每个软件包
+          echo ""
+          echo "📦 开始精确安装..."
+          SUCCESS_COUNT=0
+          FAIL_COUNT=0
+          
+          for pkg in $PACKAGES; do
+            echo -n "  → 安装: $pkg ... "
+            if ./scripts/feeds install "$pkg" 2>/dev/null; then
+              echo "✅"
+              ((SUCCESS_COUNT++))
+            else
+              echo "⚠️  失败或不存在"
+              ((FAIL_COUNT++))
+            fi
+          done
+          
+          echo ""
+          echo "📊 安装统计: 成功 $SUCCESS_COUNT 个，失败 $FAIL_COUNT 个"
+          
+          # 验证关键软件包
+          echo ""
+          echo "🔍 验证关键软件包是否可用..."
+          KEY_PACKAGES="luci-app-ttyd luci-app-passwall luci-app-adguardhome luci-app-docker"
+          for pkg in $KEY_PACKAGES; do
+            if ./scripts/feeds search "$pkg" | grep -q "$pkg"; then
+              echo "  ✅ $pkg 可用"
+            else
+              echo "  ⚠️  $pkg 不可用"
+            fi
+          done
+          
+          echo "================================================================"
+          echo "✅ 软件包精确安装完成"
+          echo "================================================================"
+
+      # ==========================================================================
+      # 第十二步：配置编译选项（使用 .config）
+      # ==========================================================================
+      - name: ⚙️ 第十二步：配置编译选项
         run: |
           echo "================================================================"
           echo "⚙️  开始配置编译选项..."
@@ -643,26 +793,123 @@ jobs:
           cd ${{ env.REPO_DIR }}
           
           # 检查 .config 文件是否存在
-          if [ -f ".config" ]; then
-            echo "⚙️  【配置模式】使用提供的 .config 文件配置编译选项..."
-            echo "   → .config 文件大小: $(wc -c < .config) bytes"
-            
-            # 生成 defconfig（根据 .config 生成完整的配置）
-            make defconfig
-            
-            echo "================================================================"
-            echo "✅ 编译配置完成"
-            echo "   → .config 文件验证通过"
-            echo "================================================================"
-          else
-            echo "⚠️ 【警告】未找到 .config 文件，将使用默认配置"
-            echo "💡 【提示】请检查 configs/ 目录中是否有对应的配置文件"
+          if [ ! -f ".config" ]; then
+            echo "❌ 【错误】缺少 .config 文件，无法继续！"
+            exit 1
           fi
+          
+          echo "⚙️  【配置模式】使用提供的 .config 文件配置编译选项..."
+          echo "   → .config 文件大小: $(wc -c < .config) bytes"
+          
+          # 保存原始配置（用于对比和恢复）
+          cp .config .config.original
+          echo "   → 原始配置已备份为 .config.original"
+          
+          # 生成 defconfig（根据 .config 生成完整的配置）
+          echo "   → 运行 make defconfig..."
+          make defconfig
+          
+          # ⚠️ 关键修复：检查并恢复被移除的软件包配置
+          echo ""
+          echo "🔍 检查并恢复被移除的软件包配置..."
+          
+          # 读取原始配置中的软件包配置
+          ORIGINAL_PACKAGES=$(grep "^CONFIG_PACKAGE_" .config.original | grep "=y")
+          ORIGINAL_COUNT=$(echo "$ORIGINAL_PACKAGES" | wc -l)
+          
+          echo "   → 原始配置中有 $ORIGINAL_COUNT 个软件包配置"
+          
+          # 检查每个软件包是否在新的 .config 中
+          RESTORED_COUNT=0
+          for pkg_line in $ORIGINAL_PACKAGES; do
+            PKG_NAME=$(echo "$pkg_line" | cut -d= -f1)
+            
+            # 如果新配置中没有这个包，重新添加
+            if ! grep -q "^$PKG_NAME=" .config; then
+              echo "     ⚠️  $PKG_NAME 被移除，正在恢复..."
+              echo "$pkg_line" >> .config
+              ((RESTORED_COUNT++))
+            fi
+          done
+          
+          if [ $RESTORED_COUNT -gt 0 ]; then
+            echo "   → 已恢复 $RESTORED_COUNT 个软件包配置"
+            # 再次运行 defconfig 确保配置有效
+            echo "   → 再次运行 make defconfig..."
+            make defconfig
+          else
+            echo "   → 所有软件包配置保留完整"
+          fi
+          
+          # 验证配置
+          echo ""
+          echo "🔍 验证关键软件包配置..."
+          
+          # 检查 .config 中的软件包数量
+          CURRENT_PACKAGES=$(grep "^CONFIG_PACKAGE_.*=y" .config | wc -l)
+          echo "   → 当前 .config 中有 $CURRENT_PACKAGES 个软件包配置"
+          
+          # 验证关键软件包
+          if grep -q "CONFIG_PACKAGE_luci-app-ttyd=y" .config; then
+            echo "   ✅ luci-app-ttyd 配置存在"
+          else
+            echo "   ❌ luci-app-ttyd 配置缺失"
+          fi
+          
+          # 检查目标平台配置
+          if grep -q "CONFIG_TARGET.*=y" .config; then
+            TARGET=$(grep "CONFIG_TARGET.*=y" .config | head -1 | cut -d= -f1)
+            echo "   ✅ 目标平台配置: $TARGET"
+          fi
+          
+          echo "================================================================"
+          echo "✅ 编译配置完成"
+          echo "   → .config 文件验证通过"
+          echo "================================================================"
 
       # ==========================================================================
-      # 第十一步：编译 OpenWrt
+      # 第十三步：下载 .config 中要求的包
       # ==========================================================================
-      - name: 🏗️ 第十一步：编译 OpenWrt
+      - name: 📥 第十三步：下载 .config 中要求的包
+        run: |
+          echo "================================================================"
+          echo "📥 开始下载 .config 中要求的包..."
+          echo "================================================================"
+          
+          cd ${{ env.REPO_DIR }}
+          
+          # 检查 .config 是否存在
+          if [ ! -f ".config" ]; then
+            echo "❌ 【错误】缺少 .config 文件，无法继续下载！"
+            exit 1
+          fi
+          
+          # 下载所有需要的包
+          CPU_CORES=$(nproc)
+          echo "💻 使用 CPU 核心数: $CPU_CORES"
+          
+          # 运行下载命令
+          echo "   → 运行 make download -j$CPU_CORES ..."
+          if make download -j$CPU_CORES; then
+            echo "✅ 包下载成功"
+          else
+            echo "⚠️  并行下载失败，尝试单线程下载..."
+            if make download -j1 V=s; then
+              echo "✅ 包下载成功（单线程模式）"
+            else
+              echo "❌ 包下载失败！"
+              exit 1
+            fi
+          fi
+          
+          echo "================================================================"
+          echo "✅ 包下载完成"
+          echo "================================================================"
+
+      # ==========================================================================
+      # 第十四步：编译 OpenWrt
+      # ==========================================================================
+      - name: 🏗️ 第十四步：编译 OpenWrt
         run: |
           echo "================================================================"
           echo "🔨 开始编译 OpenWrt..."
@@ -677,20 +924,47 @@ jobs:
             exit 1
           fi
           
-          # 开始编译
-          echo "💻 使用 CPU 核心数: $(nproc)"
-          echo "📄 当前配置文件: .config"
+          # 显示编译信息
+          CPU_CORES=$(nproc)
+          echo "💻 使用 CPU 核心数: $CPU_CORES"
+          echo "📄 配置文件: .config"
           
-          make -j$(nproc) || make -j1 V=s
+          # 显示目标平台
+          if grep -q "CONFIG_TARGET.*=y" .config; then
+            TARGET=$(grep "CONFIG_TARGET.*=y" .config | head -1 | cut -d= -f1)
+            echo "🎯 目标平台: $TARGET"
+          fi
+          
+          # 统计软件包数量
+          PACKAGE_COUNT=$(grep "^CONFIG_PACKAGE_.*=y" .config | wc -l)
+          echo "📦 软件包数量: $PACKAGE_COUNT"
+          
+          # 开始编译
+          echo ""
+          echo "🚀 开始编译..."
+          echo "   → 运行 make -j$CPU_CORES ..."
+          
+          if make -j$CPU_CORES; then
+            echo "✅ 编译成功！"
+          else
+            echo "⚠️  并行编译失败，尝试单线程详细模式..."
+            echo "   → 运行 make -j1 V=s ..."
+            if make -j1 V=s; then
+              echo "✅ 编译成功（单线程模式）"
+            else
+              echo "❌ 编译失败！"
+              exit 1
+            fi
+          fi
           
           echo "================================================================"
           echo "✅ OpenWrt 编译完成！"
           echo "================================================================"
 
       # ==========================================================================
-      # 第十二步：上传 SSH 生成的 .config 文件（仅当启用 SSH 时）
+      # 第十五步：上传 SSH 生成的 .config 文件（仅当启用 SSH 时）
       # ==========================================================================
-      - name: 💾 第十二步：上传 SSH 生成的 .config 文件
+      - name: 💾 第十五步：上传 SSH 生成的 .config 文件
         if: ${{ github.event.inputs.enable_ssh_debug == 'true' }}
         uses: actions/upload-artifact@v4
         with:
@@ -700,9 +974,9 @@ jobs:
         continue-on-error: true
 
       # ==========================================================================
-      # 第十三步：上传刷机包文件（只上传刷机包，不上传 ipk 等文件）
+      # 第十六步：上传刷机包文件（只上传刷机包，不上传 ipk 等文件）
       # ==========================================================================
-      - name: 📤 第十三步：上传刷机包文件（仅刷机包）
+      - name: 📤 第十六步：上传刷机包文件（仅刷机包）
         if: env.UPLOAD_FIRMWARE == 'true'
         uses: actions/upload-artifact@v4
         with:
@@ -721,9 +995,9 @@ jobs:
         continue-on-error: true
 
       # ==========================================================================
-      # 第十四步：上传 bin 目录（可选）
+      # 第十七步：上传 bin 目录（可选）
       # ==========================================================================
-      - name: 📤 第十四步：上传 bin 目录
+      - name: 📤 第十七步：上传 bin 目录
         if: env.UPLOAD_BIN_DIR == 'true'
         uses: actions/upload-artifact@v4
         with:
@@ -732,9 +1006,9 @@ jobs:
           retention-days: 7
 
       # ==========================================================================
-      # 第十五步：发布到 Release（可选）
+      # 第十八步：发布到 Release（可选）
       # ==========================================================================
-      - name: 🚀 第十五步：发布到 Release
+      - name: 🚀 第十八步：发布到 Release
         if: env.UPLOAD_RELEASE == 'true' && github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
