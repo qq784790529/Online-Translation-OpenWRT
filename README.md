@@ -25,7 +25,7 @@
 
 ## 关于dts的问题
   - dts 不在本项目中使用
-  - dts 需要配置在你Fock的库中，具体的dts正常因该是在 ../target/linux/SOC架构/dts/ 里面，找到对应的版型修改就行
+  - dts 需要配置在你Fock的库中，具体的 dts 的目录地址正常是在 ../target/linux/SOC架构/dts/ 里面，找到对应的板型文件修改就行
 
 ## 引用的库文件
   - [OpenWrt](https://github.com/openwrt/openwrt)
