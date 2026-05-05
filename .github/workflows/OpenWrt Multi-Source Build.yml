@@ -48,6 +48,14 @@ on:
           # ========== 完全自定义 ==========
           - 'custom - custom'
 
+      # ========== 版本选择（新增）==========
+      version_tag:
+        description: '指定版本标签（可选）'
+        type: string
+        required: false
+        default: ''
+        placeholder: '例如: v23.05.7, v24.10.6, latest, branch（留空自动选择）'
+
       # ========== 自定义仓库 URL ==========
       custom_url:
         description: '仅当选择 custom使用请输入custom的url仓库地址'
@@ -235,17 +243,148 @@ jobs:
           
           echo "✅ 编译依赖安装完成"
 
-      # ========== 第四步：克隆源码仓库 ==========
-      - name: 📥 克隆源码仓库
+      # ========== 第四步：克隆源码仓库（智能版本选择） ==========
+      - name: 📥 克隆源码仓库（智能版本选择）
         run: |
           echo "📦 正在克隆仓库: ${{ env.REPO_URL }}"
           echo "🌿 仓库目录: ${{ env.REPO_DIR }}"
-          echo "🌿 分支: ${{ env.REPO_BRANCH }}"
+          echo "🌿 选择的分支/标签: ${{ env.REPO_BRANCH }}"
+          echo "🏷️  指定版本: ${{ github.event.inputs.version_tag }}"
           
-          git clone --depth=1 -b ${{ env.REPO_BRANCH }} ${{ env.REPO_URL }} ${{ env.REPO_DIR }}
+          # ========== 步骤 1：解析用户选择的版本号 ==========
+          # 例如：'openwrt-23.05' -> 23.05
+          BASE_VERSION=$(echo "${{ env.REPO_BRANCH }}" | grep -oE 'openwrt-([0-9]+\.[0-9]+)' | cut -d'-' -f2)
+          if [ -z "$BASE_VERSION" ]; then
+            # 如果是直接选择 v23.05.7 这类标签，直接使用
+            BASE_VERSION="${{ env.REPO_BRANCH }}"
+          fi
+          
+          echo "🔍 基础版本号: $BASE_VERSION"
+          
+          # ========== 步骤 2：处理用户指定的版本 ==========
+          USER_VERSION="${{ github.event.inputs.version_tag }}"
+          CLONE_VERSION=""
+          
+          if [ -n "$USER_VERSION" ]; then
+            echo "💡 检测到用户指定了版本: $USER_VERSION"
+            
+            # 特殊关键词处理
+            if [ "$USER_VERSION" = "latest" ]; then
+              echo "🔍 使用最新正式版..."
+              
+              # 获取所有匹配的 tags（带重试）
+              for i in {1..3}; do
+                TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | \
+                  grep -E "refs/tags/v($BASE_VERSION\.[0-9]+|[0-9]+\.[0-9]+\.[0-9]+)$" | \
+                  awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr)
+                if [ -n "$TAGS" ] || [ $i -eq 3 ]; then
+                  break
+                fi
+                echo "⚠️ 第 $i 次尝试失败，等待 5 秒后重试..."
+                sleep 5
+              done
+              
+              if [ -n "$TAGS" ]; then
+                CLONE_VERSION=$(echo "$TAGS" | head -n1)
+                echo "✅ 选择最新稳定版: $CLONE_VERSION"
+              else
+                echo "❌ 错误：未找到任何正式稳定版 (v$BASE_VERSION.Z)"
+                echo "💡 可用的 tags 列表："
+                git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
+                exit 1
+              fi
+              
+            elif [ "$USER_VERSION" = "branch" ]; then
+              echo "🔍 强制使用分支版本..."
+              CLONE_VERSION="${{ env.REPO_BRANCH }}"
+              echo "✅ 选择分支: $CLONE_VERSION"
+              
+            else
+              # 检查用户指定的版本是否存在
+              echo "🔍 检查用户指定的版本是否存在..."
+              
+              # 检查是否为完整 tag（如 v23.05.7）
+              if git ls-remote --exit-code --tags ${{ env.REPO_URL }} "refs/tags/$USER_VERSION" 2>/dev/null; then
+                echo "✅ 版本存在: $USER_VERSION"
+                CLONE_VERSION="$USER_VERSION"
+              else
+                echo "❌ 错误：指定的版本不存在: $USER_VERSION"
+                echo "💡 可用的 tags 列表（匹配 $BASE_VERSION）："
+                git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v$BASE_VERSION\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
+                echo ""
+                echo "💡 所有可用的 tags 列表："
+                git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
+                exit 1
+              fi
+            fi
+            
+          else
+            # ========== 步骤 3：自动选择最新正式版（默认行为） ==========
+            echo "💡 未指定版本，自动选择最新正式版..."
+            
+            # 获取所有匹配的 tags（带重试）
+            for i in {1..3}; do
+              TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | \
+                grep -E "refs/tags/v($BASE_VERSION\.[0-9]+|[0-9]+\.[0-9]+\.[0-9]+)$" | \
+                awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr)
+              if [ -n "$TAGS" ] || [ $i -eq 3 ]; then
+                break
+              fi
+              echo "⚠️ 第 $i 次尝试失败，等待 5 秒后重试..."
+              sleep 5
+            done
+            
+            if [ -n "$TAGS" ]; then
+              CLONE_VERSION=$(echo "$TAGS" | head -n1)
+              echo "✅ 自动选择最新稳定版: $CLONE_VERSION"
+            else
+              echo "⚠️ 未发现正式稳定版 (v$BASE_VERSION.Z)"
+              echo "💡 将使用分支版本: ${{ env.REPO_BRANCH }}"
+              CLONE_VERSION="${{ env.REPO_BRANCH }}"
+            fi
+          fi
+          
+          # ========== 步骤 4：执行克隆 ==========
+          echo ""
+          echo "🔨 执行克隆命令..."
+          echo "📍 克隆版本: $CLONE_VERSION"
+          
+          # 判断是标签还是分支
+          if [[ "$CLONE_VERSION" == v* ]]; then
+            echo "🏷️  检测到标签版本，使用优化克隆策略..."
+            git clone -b "$CLONE_VERSION" \
+              --single-branch \
+              --depth=1 \
+              ${{ env.REPO_URL }} \
+              ${{ env.REPO_DIR }}
+          else
+            echo "🌿 检测到分支版本，使用标准克隆策略..."
+            git clone -b "$CLONE_VERSION" \
+              --single-branch \
+              --depth=1 \
+              ${{ env.REPO_URL }} \
+              ${{ env.REPO_DIR }}
+          fi
           
           echo "✅ 源码克隆完成"
           ls -la
+          
+          # ========== 验证克隆结果 ==========
+          cd ${{ env.REPO_DIR }}
+          echo ""
+          echo "🔍 验证克隆结果："
+          echo "📍 当前 HEAD 指向："
+          git log -1 --oneline
+          echo ""
+          echo "📍 检查是否为标签："
+          git tag --points-at HEAD || echo "⚠️ 当前不是标签（可能是分支）"
+          echo ""
+          echo "📍 检查版本文件："
+          if [ -f "package/base-files/files/etc/openwrt_release" ]; then
+            cat package/base-files/files/etc/openwrt_release
+          else
+            echo "⚠️ openwrt_release 文件不存在"
+          fi
 
       # ========== 第五步：SSH远程配置.config文件（可选）==========
       - name: 🐞 SSH远程配置.config文件（15分钟有效时间）
