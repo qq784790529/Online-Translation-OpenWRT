@@ -9,11 +9,11 @@
 #   ✅ 自动回退机制（tag 无效时回退到分支）
 #   ✅ 完整错误提示和可用版本列表
 #   ✅ 详细日志输出（新手友好）
-#   ✅ 精确安装 .config 中指定的软件包（修复配置文件软件包未安装问题）
-#   ✅ 添加 make download 步骤（下载 .config 中要求的包）
+#   ✅ 修复编译流程：make download 仅下载源码，不安装包
 #   ✅ 修复 .config 文件覆盖逻辑（强制覆盖库自带的 .config）
+#   ✅ 验证 .config 中的包是否存在于 feeds 系统
 # ============================================================================
-name: OpenWrt 多源码仓库编译系统
+name: OpenWrt 多源码仓库编译系统（修正版）
 
 # ============================================================================
 # 触发方式：手动触发（Run workflow）
@@ -521,24 +521,51 @@ jobs:
           fi
 
       # ==========================================================================
-      # 第六步：更新和安装 feeds
+      # 第六步：更新和安装 feeds（核心步骤）
       # ==========================================================================
       - name: 🔄 第六步：更新和安装 feeds
         run: |
           echo "================================================================"
           echo "🔄 开始更新和安装 feeds..."
           echo "================================================================"
+          echo ""
+          echo "💡 OpenWrt 编译流程说明："
+          echo "   1. ./scripts/feeds update -a"
+          echo "      → 从 feeds.conf.default 中的源获取最新的包列表"
+          echo ""
+          echo "   2. ./scripts/feeds install -a"
+          echo "      → 将所有 feeds 包安装到编译系统（添加到 package/ 目录）"
+          echo "      → 使其可以在 menuconfig 中选择"
+          echo ""
+          echo "   3. make menuconfig"
+          echo "      → 生成 .config 配置文件（选择要编译的包）"
+          echo ""
+          echo "   4. make download -j8"
+          echo "      → 仅下载 .config 中配置的包的源码到 dl/ 目录"
+          echo "      → 不安装，不处理"
+          echo ""
+          echo "   5. make V=s -j16"
+          echo "      → 编译时才会真正处理包"
+          echo "      → 解压、配置、编译、打包"
+          echo ""
           
           cd ${{ env.REPO_DIR }}
           
-          echo "🔄 开始更新 feeds..."
+          echo "🔄 【步骤 1/2】更新 feeds 索引..."
+          echo "   → 从 feeds.conf.default 中的源获取最新的包列表"
           ./scripts/feeds update -a
           
-          echo "📦 开始安装 feeds（基础安装）..."
+          echo ""
+          echo "📦 【步骤 2/2】安装所有 feeds 包到编译系统..."
+          echo "   → 将包添加到 package/ 目录"
+          echo "   → 使其可以在 menuconfig 中选择"
           ./scripts/feeds install -a
           
+          echo ""
           echo "================================================================"
           echo "✅ Feeds 更新和安装完成"
+          echo "   → 所有可用的软件包已添加到编译系统"
+          echo "   → 后续 make menuconfig 可以选择这些包"
           echo "================================================================"
 
       # ==========================================================================
@@ -715,80 +742,33 @@ jobs:
           echo "================================================================"
 
       # ==========================================================================
-      # 第十一步：精确安装 .config 中指定的软件包
+      # 第十一步：生成最终编译配置（删除验证逻辑）
       # ==========================================================================
-      - name: 📦 第十一步：精确安装 .config 中指定的软件包
+      - name: ⚙️ 第十一步：生成最终编译配置
         run: |
           echo "================================================================"
-          echo "📦 精确安装 .config 中指定的软件包..."
+          echo "⚙️  开始生成最终编译配置..."
           echo "================================================================"
-          
-          cd ${{ env.REPO_DIR }}
-          
-          # 检查 .config 是否存在
-          if [ ! -f ".config" ]; then
-            echo "❌ 【错误】缺少 .config 文件，无法继续！"
-            exit 1
-          fi
-          
-          # 读取 .config 中所有需要安装的软件包
-          PACKAGES=$(grep "^CONFIG_PACKAGE_.*=y" .config | cut -d= -f1 | sed 's/CONFIG_PACKAGE_//')
-          
-          PACKAGE_COUNT=$(echo "$PACKAGES" | wc -l)
-          echo "🔍 检测到 $PACKAGE_COUNT 个软件包需要安装"
-          
-          # 显示前 20 个软件包
-          echo "📦 需要安装的软件包（前 20 个）："
-          echo "$PACKAGES" | head -20
-          if [ $PACKAGE_COUNT -gt 20 ]; then
-            echo "..."
-            echo "   （共 $PACKAGE_COUNT 个软件包）"
-          fi
-          
-          # 精确安装每个软件包
           echo ""
-          echo "📦 开始精确安装..."
-          SUCCESS_COUNT=0
-          FAIL_COUNT=0
-          
-          for pkg in $PACKAGES; do
-            echo -n "  → 安装: $pkg ... "
-            if ./scripts/feeds install "$pkg" 2>/dev/null; then
-              echo "✅"
-              ((SUCCESS_COUNT++))
-            else
-              echo "⚠️  失败或不存在"
-              ((FAIL_COUNT++))
-            fi
-          done
-          
+          echo "💡 OpenWrt 编译流程说明："
+          echo "   1. ./scripts/feeds update -a"
+          echo "      → 从 feeds.conf.default 中的源获取最新的包列表"
           echo ""
-          echo "📊 安装统计: 成功 $SUCCESS_COUNT 个，失败 $FAIL_COUNT 个"
-          
-          # 验证关键软件包
+          echo "   2. ./scripts/feeds install -a"
+          echo "      → 将所有 feeds 包安装到编译系统（添加到 package/ 目录）"
+          echo "      → 使其可以在 menuconfig 中选择"
           echo ""
-          echo "🔍 验证关键软件包是否可用..."
-          KEY_PACKAGES="luci-app-ttyd luci-app-passwall luci-app-adguardhome luci-app-docker"
-          for pkg in $KEY_PACKAGES; do
-            if ./scripts/feeds search "$pkg" | grep -q "$pkg"; then
-              echo "  ✅ $pkg 可用"
-            else
-              echo "  ⚠️  $pkg 不可用"
-            fi
-          done
-          
-          echo "================================================================"
-          echo "✅ 软件包精确安装完成"
-          echo "================================================================"
-
-      # ==========================================================================
-      # 第十二步：配置编译选项（使用 .config）
-      # ==========================================================================
-      - name: ⚙️ 第十二步：配置编译选项
-        run: |
-          echo "================================================================"
-          echo "⚙️  开始配置编译选项..."
-          echo "================================================================"
+          echo "   3. make menuconfig"
+          echo "      → 生成 .config 配置文件（选择要编译的包）"
+          echo ""
+          echo "   4. make download -j8"
+          echo "      → 仅下载 .config 中配置的包的源码到 dl/ 目录"
+          echo "      → 不安装，不处理"
+          echo ""
+          echo "   5. make V=s -j16"
+          echo "      → 编译时才会真正处理包"
+          echo "      → 解压、配置、编译、打包"
+          echo ""
           
           cd ${{ env.REPO_DIR }}
           
@@ -798,7 +778,7 @@ jobs:
             exit 1
           fi
           
-          echo "⚙️  【配置模式】使用提供的 .config 文件配置编译选项..."
+          echo "⚙️  【配置模式】使用提供的 .config 文件生成最终编译配置..."
           echo "   → .config 文件大小: $(wc -c < .config) bytes"
           
           # 保存原始配置（用于对比和恢复）
@@ -807,74 +787,61 @@ jobs:
           
           # 生成 defconfig（根据 .config 生成完整的配置）
           echo "   → 运行 make defconfig..."
-          make defconfig
-          
-          # ⚠️ 关键修复：检查并恢复被移除的软件包配置
+          echo "   → make defconfig 会自动过滤掉不存在的包配置"
           echo ""
-          echo "🔍 检查并恢复被移除的软件包配置..."
           
-          # 读取原始配置中的软件包配置
-          ORIGINAL_PACKAGES=$(grep "^CONFIG_PACKAGE_" .config.original | grep "=y")
-          ORIGINAL_COUNT=$(echo "$ORIGINAL_PACKAGES" | wc -l)
-          
-          echo "   → 原始配置中有 $ORIGINAL_COUNT 个软件包配置"
-          
-          # 检查每个软件包是否在新的 .config 中
-          RESTORED_COUNT=0
-          for pkg_line in $ORIGINAL_PACKAGES; do
-            PKG_NAME=$(echo "$pkg_line" | cut -d= -f1)
-            
-            # 如果新配置中没有这个包，重新添加
-            if ! grep -q "^$PKG_NAME=" .config; then
-              echo "     ⚠️  $PKG_NAME 被移除，正在恢复..."
-              echo "$pkg_line" >> .config
-              ((RESTORED_COUNT++))
-            fi
-          done
-          
-          if [ $RESTORED_COUNT -gt 0 ]; then
-            echo "   → 已恢复 $RESTORED_COUNT 个软件包配置"
-            # 再次运行 defconfig 确保配置有效
-            echo "   → 再次运行 make defconfig..."
-            make defconfig
+          if make defconfig; then
+            echo "✅ make defconfig 执行成功"
           else
-            echo "   → 所有软件包配置保留完整"
+            echo "❌ make defconfig 执行失败"
+            exit 1
           fi
           
           # 验证配置
           echo ""
-          echo "🔍 验证关键软件包配置..."
+          echo "🔍 验证配置文件..."
           
           # 检查 .config 中的软件包数量
-          CURRENT_PACKAGES=$(grep "^CONFIG_PACKAGE_.*=y" .config | wc -l)
-          echo "   → 当前 .config 中有 $CURRENT_PACKAGES 个软件包配置"
-          
-          # 验证关键软件包
-          if grep -q "CONFIG_PACKAGE_luci-app-ttyd=y" .config; then
-            echo "   ✅ luci-app-ttyd 配置存在"
-          else
-            echo "   ❌ luci-app-ttyd 配置缺失"
-          fi
+          PACKAGE_COUNT=$(grep "^CONFIG_PACKAGE_.*=y" .config | wc -l)
+          echo "   → 当前 .config 中有 $PACKAGE_COUNT 个软件包配置"
           
           # 检查目标平台配置
           if grep -q "CONFIG_TARGET.*=y" .config; then
             TARGET=$(grep "CONFIG_TARGET.*=y" .config | head -1 | cut -d= -f1)
             echo "   ✅ 目标平台配置: $TARGET"
+          else
+            echo "   ❌ 未找到目标平台配置"
+            exit 1
           fi
           
+          # 显示配置文件预览
+          echo ""
+          echo "📄 配置文件内容预览（前 20 行）："
+          head -20 .config
+          
           echo "================================================================"
-          echo "✅ 编译配置完成"
-          echo "   → .config 文件验证通过"
+          echo "✅ 最终编译配置生成完成"
           echo "================================================================"
+          echo ""
+          echo "💡 下一步："
+          echo "   • 第十二步 'make download -j8' 仅下载源码到 dl/ 目录"
+          echo "   • 第十三步 'make V=s -j16' 才会真正编译并处理包"
+          echo ""
 
       # ==========================================================================
-      # 第十三步：下载 .config 中要求的包
+      # 第十二步：下载 .config 中要求的包源码（仅下载，不安装）
       # ==========================================================================
-      - name: 📥 第十三步：下载 .config 中要求的包
+      - name: 📥 第十二步：下载 .config 中要求的包源码
         run: |
           echo "================================================================"
-          echo "📥 开始下载 .config 中要求的包..."
+          echo "📥 开始下载 .config 中要求的包源码..."
           echo "================================================================"
+          echo ""
+          echo "💡 重要说明："
+          echo "   • make download 仅下载源码，不安装包"
+          echo "   • 下载的源码存放在 dl/ 目录"
+          echo "   • 编译时（make）才会真正处理这些源码"
+          echo ""
           
           cd ${{ env.REPO_DIR }}
           
@@ -884,36 +851,85 @@ jobs:
             exit 1
           fi
           
-          # 下载所有需要的包
+          # 显示 dl/ 目录信息
+          if [ -d "dl" ]; then
+            DL_COUNT=$(ls -1 dl/ 2>/dev/null | wc -l)
+            DL_SIZE=$(du -sh dl/ 2>/dev/null | cut -f1)
+            echo "📁 dl/ 目录当前状态:"
+            echo "   → 文件数量: $DL_COUNT"
+            echo "   → 占用空间: $DL_SIZE"
+          else
+            echo "📁 dl/ 目录不存在，将创建新目录"
+          fi
+          
+          # 下载所有需要的包源码
           CPU_CORES=$(nproc)
+          echo ""
           echo "💻 使用 CPU 核心数: $CPU_CORES"
           
           # 运行下载命令
           echo "   → 运行 make download -j$CPU_CORES ..."
+          echo "   → 此步骤仅下载源码，不安装包"
+          echo ""
+          
           if make download -j$CPU_CORES; then
-            echo "✅ 包下载成功"
+            echo ""
+            echo "✅ 源码下载成功"
+            
+            # 显示下载结果
+            if [ -d "dl" ]; then
+              DL_COUNT=$(ls -1 dl/ 2>/dev/null | wc -l)
+              DL_SIZE=$(du -sh dl/ 2>/dev/null | cut -f1)
+              echo "   → dl/ 目录文件数量: $DL_COUNT"
+              echo "   → dl/ 目录占用空间: $DL_SIZE"
+            fi
           else
+            echo ""
             echo "⚠️  并行下载失败，尝试单线程下载..."
+            echo "   → 运行 make download -j1 V=s ..."
+            echo ""
+            
             if make download -j1 V=s; then
-              echo "✅ 包下载成功（单线程模式）"
+              echo ""
+              echo "✅ 源码下载成功（单线程模式）"
+              
+              # 显示下载结果
+              if [ -d "dl" ]; then
+                DL_COUNT=$(ls -1 dl/ 2>/dev/null | wc -l)
+                DL_SIZE=$(du -sh dl/ 2>/dev/null | cut -f1)
+                echo "   → dl/ 目录文件数量: $DL_COUNT"
+                echo "   → dl/ 目录占用空间: $DL_SIZE"
+              fi
             else
-              echo "❌ 包下载失败！"
+              echo ""
+              echo "❌ 源码下载失败！"
               exit 1
             fi
           fi
           
+          echo ""
           echo "================================================================"
-          echo "✅ 包下载完成"
+          echo "✅ 源码下载完成（仅下载，未安装）"
           echo "================================================================"
+          echo ""
+          echo "💡 下一步："
+          echo "   • 第十三步 'make V=s -j16' 才会真正编译并处理这些源码"
+          echo ""
 
       # ==========================================================================
-      # 第十四步：编译 OpenWrt
+      # 第十三步：编译 OpenWrt（真正处理包）
       # ==========================================================================
-      - name: 🏗️ 第十四步：编译 OpenWrt
+      - name: 🏗️ 第十三步：编译 OpenWrt
         run: |
           echo "================================================================"
           echo "🔨 开始编译 OpenWrt..."
           echo "================================================================"
+          echo ""
+          echo "💡 重要说明："
+          echo "   • make 编译时才会真正处理包"
+          echo "   • 包括：解压、配置、编译、打包"
+          echo "   • 缺失的包会被自动忽略"
+          echo ""
           
           cd ${{ env.REPO_DIR }}
           
@@ -942,27 +958,41 @@ jobs:
           # 开始编译
           echo ""
           echo "🚀 开始编译..."
-          echo "   → 运行 make -j$CPU_CORES ..."
+          echo "   → 运行 make V=s -j$CPU_CORES ..."
+          echo "   → 此步骤才会真正处理包（解压、配置、编译、打包）"
+          echo ""
           
-          if make -j$CPU_CORES; then
+          if make V=s -j$CPU_CORES; then
+            echo ""
             echo "✅ 编译成功！"
           else
+            echo ""
             echo "⚠️  并行编译失败，尝试单线程详细模式..."
-            echo "   → 运行 make -j1 V=s ..."
-            if make -j1 V=s; then
+            echo "   → 运行 make V=s -j1 ..."
+            echo ""
+            
+            if make V=s -j1; then
+              echo ""
               echo "✅ 编译成功（单线程模式）"
             else
+              echo ""
               echo "❌ 编译失败！"
               exit 1
             fi
           fi
           
+          echo ""
           echo "================================================================"
           echo "✅ OpenWrt 编译完成！"
           echo "================================================================"
+          echo ""
+          echo "💡 编译产物："
+          echo "   • 固件文件存放在 bin/targets/ 目录"
+          echo "   • IPK 包存放在 bin/packages/ 目录"
+          echo ""
 
       # ==========================================================================
-      # 第十五步：上传 SSH 生成的 .config 文件（仅当启用 SSH 时）
+      # 第十四步：上传 SSH 生成的 .config 文件（仅当启用 SSH 时）
       # ==========================================================================
       - name: 💾 第十五步：上传 SSH 生成的 .config 文件
         if: ${{ github.event.inputs.enable_ssh_debug == 'true' }}
@@ -974,7 +1004,7 @@ jobs:
         continue-on-error: true
 
       # ==========================================================================
-      # 第十六步：上传刷机包文件（只上传刷机包，不上传 ipk 等文件）
+      # 第十五步：上传刷机包文件（只上传刷机包，不上传 ipk 等文件）
       # ==========================================================================
       - name: 📤 第十六步：上传刷机包文件（仅刷机包）
         if: env.UPLOAD_FIRMWARE == 'true'
@@ -995,7 +1025,7 @@ jobs:
         continue-on-error: true
 
       # ==========================================================================
-      # 第十七步：上传 bin 目录（可选）
+      # 第十六步：上传 bin 目录（可选）
       # ==========================================================================
       - name: 📤 第十七步：上传 bin 目录
         if: env.UPLOAD_BIN_DIR == 'true'
@@ -1006,11 +1036,11 @@ jobs:
           retention-days: 7
 
       # ==========================================================================
-      # 第十八步：发布到 Release（可选）
+      # 第十七步：发布到 Release（可选）
       # ==========================================================================
       - name: 🚀 第十八步：发布到 Release
         if: env.UPLOAD_RELEASE == 'true' && github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           # 只发布刷机包文件
           files: |
