@@ -5,6 +5,7 @@
 #   ✅ 智能版本选择（自动/手动/最新/分支）
 #   ✅ 严格主版本匹配（23.05 只匹配 v23.05.x）
 #   ✅ Tags 版本直接复制使用（如 v23.05.6）
+#   ✅ 支持 lightweight tag（轻量级标签）
 #   ✅ 自动回退机制（tag 无效时回退到分支）
 #   ✅ SSH 远程配置 .config 文件
 #   ✅ 完整错误提示和可用版本列表
@@ -264,12 +265,12 @@ jobs:
           echo "🏷️  用户指定版本: ${{ github.event.inputs.version_tag }}"
           echo ""
           
-          # ========== 步骤 1：版本号标准化 ==========
+          # ========== 步骤 1：版本号标准化（关键修复！）==========
           normalize_version() {
             local ver="$1"
             local major=$(echo "$ver" | cut -d. -f1)
-            local minor=$(echo "$ver" | cut -d. -f2 | sed 's/^0*//')
-            minor=$(printf "%02d" "$minor")
+            local minor=$(echo "$ver" | cut -d. -f2 | sed 's/^0*//')  # 去掉前导零
+            minor=$(printf "%02d" "$minor")  # 补回两位
             echo "$major.$minor"
           }
           
@@ -277,15 +278,25 @@ jobs:
           MINOR=""
           BASE_VERSION=""
           
+          # 尝试匹配 openwrt-X.Y 格式（如 openwrt-23.05 或 openwrt-23.5）
           if [[ "${{ env.REPO_BRANCH }}" =~ openwrt-([0-9]+)\.([0-9]+) ]]; then
+            # 标准化版本（23.5 -> 23.05）
             MAJOR="${BASH_REMATCH[1]}"
             MINOR=$(normalize_version "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}")
             BASE_VERSION="$MINOR"
-            echo "🔍 标准化版本: $MINOR (原 ${BASH_REMATCH[1]}.${BASH_REMATCH[2]})"
-          elif [[ "$BASE_VERSION" =~ ^v([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
-            MAJOR="${BASH_REMATCH[1]}"
-            MINOR=$(normalize_version "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}")
-            echo "🔍 标准化版本: $MINOR"
+            echo "🔍 【版本解析】分支名匹配 openwrt-X.Y 格式"
+            echo "   → 标准化版本: $MINOR (原 ${BASH_REMATCH[1]}.${BASH_REMATCH[2]})"
+          else
+            # 如果是直接指定标签（如 v23.05.7 或 v23.5.7）
+            BASE_VERSION="${{ env.REPO_BRANCH }}"
+            echo "🔍 【版本解析】未匹配 openwrt-X.Y 格式，使用原始分支名: $BASE_VERSION"
+            
+            # 从标签提取主次版本（支持 v23.5.7）
+            if [[ "$BASE_VERSION" =~ ^v([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
+              MAJOR="${BASH_REMATCH[1]}"
+              MINOR=$(normalize_version "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}")
+              echo "   → 标准化版本: $MINOR (原 ${BASH_REMATCH[1]}.${BASH_REMATCH[2]})"
+            fi
           fi
           echo ""
           
@@ -297,13 +308,19 @@ jobs:
             echo "💡 【用户输入】检测到用户指定了版本: $USER_VERSION"
             echo ""
             
+            # 特殊关键词处理
             if [ "$USER_VERSION" = "latest" ]; then
-              echo "🔍 【版本选择】使用最新正式版..."
+              echo "🔍 【版本选择】使用最新正式版（支持省略前导零格式）..."
               
+              # 智能匹配规则：v23.05.x 或 v23.5.x
               if [ -n "$MINOR" ]; then
+                # 提取标准化后的主次版本（23.05）
                 MAJOR_STANDARD=$(echo "$MINOR" | cut -d. -f1)
                 MINOR_STANDARD=$(echo "$MINOR" | cut -d. -f2)
                 
+                echo "   → 匹配规则: refs/tags/v${MAJOR_STANDARD}\.0*${MINOR_STANDARD}\.[0-9]+$"
+                
+                # 带重试机制
                 for i in {1..3}; do
                   TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | \
                     grep -E "refs/tags/v${MAJOR_STANDARD}\.0*${MINOR_STANDARD}\.[0-9]+$" | \
@@ -311,92 +328,243 @@ jobs:
                   if [ -n "$TAGS" ] || [ $i -eq 3 ]; then
                     break
                   fi
+                  echo "   ⚠️ 第 $i 次尝试失败，等待 5 秒后重试..."
                   sleep 5
                 done
                 
                 if [ -n "$TAGS" ]; then
                   CLONE_VERSION=$(echo "$TAGS" | head -n1)
-                  echo "✅ 选择: $CLONE_VERSION"
+                  echo "✅ 【版本选择】选择最新稳定版（支持省略前导零）: $CLONE_VERSION"
+                else
+                  echo "❌ 【错误】未找到匹配 $MINOR 的正式稳定版"
+                  echo "💡 【提示】可用的 tags 列表（支持省略前导零）："
+                  git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v${MAJOR_STANDARD}\.0*${MINOR_STANDARD}\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
+                  exit 1
+                fi
+              else
+                # 无法确定主次版本（如 master 分支），使用宽松匹配
+                echo "⚠️ 无法确定主次版本，使用宽松匹配..."
+                TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr)
+                if [ -n "$TAGS" ]; then
+                  CLONE_VERSION=$(echo "$TAGS" | head -n1)
+                  echo "✅ 【版本选择】选择最新稳定版（宽松匹配）: $CLONE_VERSION"
                 else
                   CLONE_VERSION="${{ env.REPO_BRANCH }}"
-                  echo "⚠️ 使用分支: $CLONE_VERSION"
+                  echo "⚠️ 未找到稳定版，使用分支: $CLONE_VERSION"
                 fi
               fi
               
             elif [ "$USER_VERSION" = "branch" ]; then
+              echo "🔍 【版本选择】强制使用分支版本..."
               CLONE_VERSION="${{ env.REPO_BRANCH }}"
-              echo "✅ 强制使用分支: $CLONE_VERSION"
+              echo "✅ 【版本选择】选择分支: $CLONE_VERSION"
               
             else
-              # ========== 关键修复：处理 lightweight tag ==========
+              # 检查用户指定的版本是否存在（支持 v23.5.6）
               echo "🔍 【版本选择】检查用户指定的版本是否存在..."
               echo "   → 检查版本: $USER_VERSION"
               
-              # 1. 检查 tag 是否存在
+              # 1. 检查完整 tag
               if git ls-remote --exit-code --tags ${{ env.REPO_URL }} "refs/tags/$USER_VERSION" 2>/dev/null; then
-                echo "✅ 版本存在: $USER_VERSION"
+                echo "✅ 【版本选择】版本存在: $USER_VERSION"
                 
-                # 2. 获取 commit hash
+                # 2. 额外检查：tag 指向的 commit 是否有效
                 COMMIT_HASH=$(git ls-remote ${{ env.REPO_URL }} "refs/tags/$USER_VERSION" | awk '{print $1}')
                 if [ -n "$COMMIT_HASH" ] && [ "$COMMIT_HASH" != "0000000000000000000000000000000000000000" ]; then
-                  echo "   → commit hash: $COMMIT_HASH"
+                  echo "   → tag 指向有效 commit: $COMMIT_HASH"
                   
-                  # 3. 尝试直接克隆 tag（可能失败）
+                  # 3. 尝试直接克隆 tag
                   if git clone -b "$USER_VERSION" --single-branch --depth=1 ${{ env.REPO_URL }} temp_clone 2>/dev/null; then
                     rm -rf ${{ env.REPO_DIR }}
                     mv temp_clone ${{ env.REPO_DIR }}
                     CLONE_VERSION="$USER_VERSION"
-                    echo "✅ 成功克隆 tag: $USER_VERSION"
+                    echo "✅ 【版本选择】成功克隆 tag: $USER_VERSION"
                   else
-                    echo "⚠️ tag 克隆失败（可能是 lightweight tag），改用 commit hash 克隆..."
+                    echo "⚠️ 【警告】tag $USER_VERSION 克隆失败（可能是 lightweight tag）"
+                    echo "   → 尝试使用 commit hash 克隆..."
                     
-                    # 4. 改用 commit hash 克隆（终极解决方案）
+                    # 4. 改用 commit hash 克隆（支持 lightweight tag）
                     rm -rf temp_clone ${{ env.REPO_DIR }}
                     git clone --single-branch --depth=1 ${{ env.REPO_URL }} ${{ env.REPO_DIR }}
                     cd ${{ env.REPO_DIR }}
                     git checkout $COMMIT_HASH
                     cd ..
                     CLONE_VERSION="commit-$COMMIT_HASH"
-                    echo "✅ 成功克隆 commit: $COMMIT_HASH"
+                    echo "✅ 【版本选择】成功克隆 commit: $COMMIT_HASH"
                   fi
                 else
-                  echo "❌ commit hash 无效"
-                  CLONE_VERSION="${{ env.REPO_BRANCH }}"
+                  echo "⚠️ 【警告】tag $USER_VERSION 指向无效 commit"
+                  echo "   → 尝试直接克隆..."
+                  
+                  # 尝试直接克隆，失败则回退到分支
+                  if git clone -b "$USER_VERSION" --single-branch --depth=1 ${{ env.REPO_URL }} temp_clone 2>/dev/null; then
+                    rm -rf ${{ env.REPO_DIR }}
+                    mv temp_clone ${{ env.REPO_DIR }}
+                    CLONE_VERSION="$USER_VERSION"
+                    echo "✅ 【版本选择】成功克隆 tag: $USER_VERSION"
+                  else
+                    echo "❌ 【错误】tag $USER_VERSION 克隆失败"
+                    echo "💡 【提示】将回退到分支版本: ${{ env.REPO_BRANCH }}"
+                    CLONE_VERSION="${{ env.REPO_BRANCH }}"
+                  fi
                 fi
               else
-                echo "❌ 版本不存在: $USER_VERSION"
+                echo "❌ 【错误】指定的版本不存在: $USER_VERSION"
+                echo "💡 【提示】可用的 tags 列表（支持省略前导零）："
+                if [ -n "$MINOR" ]; then
+                  # 提取标准化后的主次版本
+                  MAJOR_STANDARD=$(echo "$MINOR" | cut -d. -f1)
+                  MINOR_STANDARD=$(echo "$MINOR" | cut -d. -f2)
+                  git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v${MAJOR_STANDARD}\.0*${MINOR_STANDARD}\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
+                else
+                  echo "   → 所有可用 tags："
+                  git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr | head -n20
+                fi
                 exit 1
               fi
             fi
             
           else
-            # 自动选择逻辑（同上，略）
-            # ...
+            # ========== 步骤 3：自动选择最新正式版（支持省略前导零） ==========
+            echo "💡 【用户输入】未指定版本，自动选择最新正式版（支持省略前导零）..."
+            echo ""
+            
+            # 如果能解析出 MINOR（标准化后的版本），智能匹配
+            if [ -n "$MINOR" ]; then
+              # 提取标准化后的主次版本
+              MAJOR_STANDARD=$(echo "$MINOR" | cut -d. -f1)
+              MINOR_STANDARD=$(echo "$MINOR" | cut -d. -f2)
+              
+              echo "🔍 【版本选择】匹配规则: refs/tags/v${MAJOR_STANDARD}\.0*${MINOR_STANDARD}\.[0-9]+$"
+              
+              # 带重试机制
+              for i in {1..3}; do
+                TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | \
+                  grep -E "refs/tags/v${MAJOR_STANDARD}\.0*${MINOR_STANDARD}\.[0-9]+$" | \
+                  awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr)
+                if [ -n "$TAGS" ] || [ $i -eq 3 ]; then
+                  break
+                fi
+                echo "   ⚠️ 第 $i 次尝试失败，等待 5 秒后重试..."
+                sleep 5
+              done
+              
+              if [ -n "$TAGS" ]; then
+                CLONE_VERSION=$(echo "$TAGS" | head -n1)
+                echo "✅ 【版本选择】自动选择最新稳定版（支持省略前导零）: $CLONE_VERSION"
+              else
+                echo "⚠️ 【警告】未发现 $MINOR 的正式稳定版 (v$MAJOR_STANDARD.$MINOR_STANDARD.Z)"
+                echo "💡 【提示】将使用分支版本: ${{ env.REPO_BRANCH }}"
+                CLONE_VERSION="${{ env.REPO_BRANCH }}"
+              fi
+            else
+              # 无法解析主次版本（如 master 分支），使用宽松匹配
+              echo "⚠️ 【版本选择】无法解析主次版本，使用宽松匹配..."
+              TAGS=$(git ls-remote --tags ${{ env.REPO_URL }} 2>/dev/null | grep -E "refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$" | awk '{print $2}' | sed 's|refs/tags/||' | sort -Vr)
+              if [ -n "$TAGS" ]; then
+                CLONE_VERSION=$(echo "$TAGS" | head -n1)
+                echo "✅ 【版本选择】选择最新稳定版（宽松匹配）: $CLONE_VERSION"
+              else
+                echo "⚠️ 未找到稳定版，使用分支: ${{ env.REPO_BRANCH }}"
+                CLONE_VERSION="${{ env.REPO_BRANCH }}"
+              fi
+            fi
           fi
           
-          # ========== 步骤 3：执行克隆 ==========
+          echo ""
+          echo "================================================================"
+          echo "🔨 开始执行克隆命令..."
+          echo "================================================================"
+          echo "📍 克隆版本: $CLONE_VERSION"
+          
+          # ========== 步骤 4：执行克隆（带错误处理和回退机制）==========
+          CLONE_SUCCESS=false
+          
+          # 判断是标签还是分支
           if [[ "$CLONE_VERSION" == commit-* ]]; then
-            echo "📍 使用 commit hash 克隆模式"
-            # 已在上面处理完成
+            echo "📍 【克隆策略】检测到 commit hash 模式（支持 lightweight tag）..."
+            # commit 模式已在上面处理完成
+            CLONE_SUCCESS=true
+            echo "✅ 【克隆结果】成功克隆 commit 模式"
+            
           elif [[ "$CLONE_VERSION" == v* ]]; then
-            echo "🏷️ 标签克隆模式"
-            if ! git clone -b "$CLONE_VERSION" --single-branch --depth=1 ${{ env.REPO_URL }} ${{ env.REPO_DIR }} 2>&1; then
-              echo "❌ 标签克隆失败，尝试 commit 模式..."
-              COMMIT_HASH=$(git ls-remote ${{ env.REPO_URL }} "refs/tags/$CLONE_VERSION" | awk '{print $1}')
+            echo "🏷️  【克隆策略】检测到标签版本，使用优化克隆策略..."
+            
+            # 尝试克隆 tag，失败则回退到分支
+            if git clone -b "$CLONE_VERSION" \
+              --single-branch \
+              --depth=1 \
+              ${{ env.REPO_URL }} \
+              ${{ env.REPO_DIR }} 2>&1; then
+              CLONE_SUCCESS=true
+              echo "✅ 【克隆结果】成功克隆 tag: $CLONE_VERSION"
+            else
+              echo "❌ 【克隆失败】tag $CLONE_VERSION 克隆失败"
+              echo "💡 【自动回退】尝试回退到分支版本: ${{ env.REPO_BRANCH }}"
+              
+              # 清理失败的克隆
               rm -rf ${{ env.REPO_DIR }}
-              git clone --single-branch --depth=1 ${{ env.REPO_URL }} ${{ env.REPO_DIR }}
-              cd ${{ env.REPO_DIR }}
-              git checkout $COMMIT_HASH
-              cd ..
-              CLONE_VERSION="commit-$COMMIT_HASH"
+              
+              # 回退到分支
+              if git clone -b "${{ env.REPO_BRANCH }}" \
+                --single-branch \
+                --depth=1 \
+                ${{ env.REPO_URL }} \
+                ${{ env.REPO_DIR }} 2>&1; then
+                CLONE_SUCCESS=true
+                CLONE_VERSION="${{ env.REPO_BRANCH }}"
+                echo "✅ 【克隆结果】成功回退到分支: $CLONE_VERSION"
+              else
+                echo "❌ 【克隆失败】分支克隆也失败！"
+                exit 1
+              fi
             fi
           else
-            echo "🌿 分支克隆模式"
-            git clone -b "$CLONE_VERSION" --single-branch --depth=1 ${{ env.REPO_URL }} ${{ env.REPO_DIR }}
+            echo "🌿 【克隆策略】检测到分支版本，使用标准克隆策略..."
+            
+            if git clone -b "$CLONE_VERSION" \
+              --single-branch \
+              --depth=1 \
+              ${{ env.REPO_URL }} \
+              ${{ env.REPO_DIR }} 2>&1; then
+              CLONE_SUCCESS=true
+              echo "✅ 【克隆结果】成功克隆分支: $CLONE_VERSION"
+            else
+              echo "❌ 【克隆失败】分支克隆失败！"
+              exit 1
+            fi
           fi
           
-          echo "✅ 源码克隆完成！"
-          
+          if [ "$CLONE_SUCCESS" = true ]; then
+            echo ""
+            echo "================================================================"
+            echo "✅ 源码克隆完成！"
+            echo "================================================================"
+            ls -la
+            
+            # ========== 验证克隆结果 ==========
+            cd ${{ env.REPO_DIR }}
+            echo ""
+            echo "================================================================"
+            echo "🔍 验证克隆结果："
+            echo "================================================================"
+            echo "📍 当前 HEAD 指向："
+            git log -1 --oneline
+            echo ""
+            echo "📍 检查是否为标签："
+            git tag --points-at HEAD || echo "⚠️ 当前不是标签（可能是分支）"
+            echo ""
+            echo "📍 检查版本文件："
+            if [ -f "package/base-files/files/etc/openwrt_release" ]; then
+              cat package/base-files/files/etc/openwrt_release
+            else
+              echo "⚠️ openwrt_release 文件不存在"
+            fi
+          else
+            echo "❌ 克隆失败，退出"
+            exit 1
+          fi
+
       # ==========================================================================
       # 第五步：SSH 远程配置 .config 文件（可选）
       # ==========================================================================
