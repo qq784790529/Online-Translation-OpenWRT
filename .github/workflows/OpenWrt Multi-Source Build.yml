@@ -64,7 +64,16 @@ on:
           - 'DIY2 - master'
 
           # ========== 自定义仓库 3 ==========
+          - 'DIY3 - main'
+          - 'DIY3 - lede-17.01'
           - 'DIY3 - master'
+          - 'DIY3 - openwrt-18.06'
+          - 'DIY3 - openwrt-19.07'
+          - 'DIY3 - openwrt-21.02'
+          - 'DIY3 - openwrt-22.03'
+          - 'DIY3 - openwrt-23.05'
+          - 'DIY3 - openwrt-24.10'
+          - 'DIY3 - openwrt-25.12'
           
           # ========== 完全自定义 ==========
           - 'custom - custom'
