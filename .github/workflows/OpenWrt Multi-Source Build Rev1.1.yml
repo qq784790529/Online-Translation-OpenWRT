@@ -953,6 +953,127 @@ jobs:
           echo "✅ 自定义 dts 替换检查完成"
           echo "================================================================"
 
+
+            # ==========================================================================
+      # 第十一点六步：处理本地 IPK 包（自动集成进固件）
+      # ==========================================================================
+      - name: 📦 第十一点六步：处理本地 IPK 包
+        run: |
+          echo "================================================================"
+          echo "📦 检查本地 IPK 包..."
+          echo "================================================================"
+          cd ${{ env.REPO_DIR }}
+
+          LOCAL_IPK_DIR="../local-packages"
+          if [ ! -d "$LOCAL_IPK_DIR" ]; then
+            echo "ℹ️  未找到 local-packages 目录，跳过本地 IPK 集成。"
+            echo "💡 如需集成预编译的 ipk，请在仓库根目录创建 local-packages/ 文件夹并放入 .ipk 文件。"
+          else
+            IPK_COUNT=$(ls -1 "$LOCAL_IPK_DIR"/*.ipk 2>/dev/null | wc -l)
+            if [ "$IPK_COUNT" -eq 0 ]; then
+              echo "ℹ️  local-packages 目录为空，无 IPK 需要集成。"
+            else
+              echo "✅ 检测到 $IPK_COUNT 个 IPK 文件，开始自动集成..."
+
+              mkdir -p package/local-packages
+              for ipk_path in "$LOCAL_IPK_DIR"/*.ipk; do
+                [ -f "$ipk_path" ] || continue
+                echo ""
+                echo "--- 处理: $(basename "$ipk_path") ---"
+
+                # 提取包名、版本、架构 (格式: <name>_<version>_<arch>.ipk)
+                filename=$(basename "$ipk_path")
+                if ! [[ "$filename" =~ ^(.+)_([^_]+)_([^_]+)\.ipk$ ]]; then
+                  echo "⚠️  文件名格式不符，跳过: $filename"
+                  continue
+                fi
+                pkg_name="${BASH_REMATCH[1]}"
+                pkg_version="${BASH_REMATCH[2]}"
+                pkg_arch="${BASH_REMATCH[3]}"
+
+                echo "  包名: $pkg_name"
+                echo "  版本: $pkg_version"
+                echo "  架构: $pkg_arch"
+
+                # 避免与已有包冲突
+                if [ -d "package/feeds" ] && grep -rq "Package/$pkg_name" package/feeds/ 2>/dev/null; then
+                  echo "⚠️  包 $pkg_name 已存在于 feeds 中，为免冲突跳过。"
+                  continue
+                fi
+                if [ -d "package/local-packages/$pkg_name" ]; then
+                  echo "⚠️  包 $pkg_name 已由本地 IPK 定义，跳过重复。"
+                  continue
+                fi
+
+                # 创建包目录并生成 Makefile
+                pkg_dir="package/local-packages/$pkg_name"
+                mkdir -p "$pkg_dir"
+
+                # 复制 ipk 到 dl 目录（构建系统从 dl 取源）
+                dl_dir="$PWD/dl"
+                mkdir -p "$dl_dir"
+                cp "$ipk_path" "$dl_dir/$filename"
+
+                # 写入 Makefile
+                cat > "$pkg_dir/Makefile" <<EOF
+include \$(TOPDIR)/rules.mk
+
+PKG_NAME:=$pkg_name
+PKG_VERSION:=$pkg_version
+PKG_RELEASE:=1
+PKG_SOURCE:=$filename
+PKG_SOURCE_URL:=file://\$(TOPDIR)/dl
+
+include \$(INCLUDE_DIR)/package.mk
+
+define Package/$pkg_name
+  SECTION:=local
+  CATEGORY:=Local Packages
+  TITLE:=Local package: $pkg_name
+  DEPENDS:=
+endef
+
+define Package/$pkg_name/description
+  Locally provided ipk package.
+endef
+
+define Build/Prepare
+endef
+
+define Build/Compile
+	mkdir -p \$(PKG_BUILD_DIR)
+	ar p \$(DL_DIR)/\$(PKG_SOURCE) data.tar.gz | tar -xz -C \$(PKG_BUILD_DIR)/
+endef
+
+define Package/$pkg_name/install
+	\$(INSTALL_DIR) \$(1)/
+	[ -d "\$(PKG_BUILD_DIR)" ] && cp -rf \$(PKG_BUILD_DIR)/* \$(1)/ 2>/dev/null || true
+endef
+
+\$(eval \$(call BuildPackage,$pkg_name))
+EOF
+
+                echo "✅ 已生成 Makefile: $pkg_dir/Makefile"
+
+                # 自动勾选该包
+                if ! grep -q "CONFIG_PACKAGE_${pkg_name}=y" .config; then
+                  echo "CONFIG_PACKAGE_${pkg_name}=y" >> .config
+                  echo "   → 已自动启用该包。"
+                fi
+              done
+
+              # 重新运行 defconfig 以使新包生效
+              echo ""
+              echo "🔄 重新生成配置以包含本地 IPK..."
+              make defconfig 2>/dev/null || true
+            fi
+          fi
+
+          echo "================================================================"
+          echo "✅ 本地 IPK 处理完成"
+          echo "================================================================"
+
+          
       # ==========================================================================
       # 第十二步：下载 .config 中要求的包源码（仅下载，不安装）
       # ==========================================================================
