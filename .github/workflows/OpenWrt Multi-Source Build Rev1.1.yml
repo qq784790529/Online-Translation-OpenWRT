@@ -13,7 +13,6 @@
 #   ✅ 修复 .config 文件覆盖逻辑（强制覆盖库自带的 .config）
 #   ✅ 验证 .config 中的包是否存在于 feeds 系统
 #   ✅ 自动替换自定义 dts/dtsi 文件（检测 custom-dts/ 目录）
-#   ✅ 自动集成本地 IPK 包（检测 local-packages/ 目录）
 # ============================================================================
 name: OpenWrt 多源码仓库编译系统（增强版）
 
@@ -52,30 +51,6 @@ on:
           - 'ImmortalWrt/immortalwrt - openwrt-21.02'
           - 'ImmortalWrt/immortalwrt - openwrt-18.06'
           - 'ImmortalWrt/immortalwrt - openwrt-18.06-k5.4'
-          
-          # ========== 自定义仓库 1 ==========
-          - 'DIY1 - master'
-          - 'DIY1 - openwrt-25.12'
-          - 'DIY1 - openwrt-24.10'
-          - 'DIY1 - openwrt-23.05'
-          - 'DIY1 - openwrt-21.02'
-          - 'DIY1 - openwrt-18.06'
-          - 'DIY1 - openwrt-18.06-k5.4'
-
-          # ========== 自定义仓库 2 ==========
-          - 'DIY2 - master'
-
-          # ========== 自定义仓库 3 ==========
-          - 'DIY3 - main'
-          - 'DIY3 - lede-17.01'
-          - 'DIY3 - master'
-          - 'DIY3 - openwrt-18.06'
-          - 'DIY3 - openwrt-19.07'
-          - 'DIY3 - openwrt-21.02'
-          - 'DIY3 - openwrt-22.03'
-          - 'DIY3 - openwrt-23.05'
-          - 'DIY3 - openwrt-24.10'
-          - 'DIY3 - openwrt-25.12'
           
           # ========== 完全自定义 ==========
           - 'custom - custom'
@@ -196,7 +171,7 @@ jobs:
               
             "DIY1")
               # 自定义仓库 1（请修改为你需要的仓库地址）
-              REPO_URL="https://github.com/qq784790529/immortalwrt"
+              REPO_URL="https://github.com/"
               REPO_DIR="diy1"
               CONFIG_FILE="configs/diy1.config"
               echo "✅ 选择的仓库: DIY1"
@@ -207,7 +182,7 @@ jobs:
 
             "DIY2")
               # 自定义仓库 2（请修改为你需要的仓库地址）
-              REPO_URL="https://github.com/qq784790529/lede"
+              REPO_URL="https://github.com/"
               REPO_DIR="diy2"
               CONFIG_FILE="configs/diy2.config"
               echo "✅ 选择的仓库: DIY2"
@@ -218,7 +193,7 @@ jobs:
 
             "DIY3")
               # 自定义仓库 3（请修改为你需要的仓库地址）
-              REPO_URL="https://github.com/qq784790529/openwrt"
+              REPO_URL="https://github.com/"
               REPO_DIR="diy3"
               CONFIG_FILE="configs/diy3.config"
               echo "✅ 选择的仓库: DIY3"
