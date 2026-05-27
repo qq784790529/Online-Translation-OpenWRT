@@ -11,6 +11,7 @@ on:
         type: choice
         required: true
         options:
+		  # ========== openwrt 仓库 ==========
           - 'openwrt/openwrt - main'
           - 'openwrt/openwrt - lede-17.01'
           - 'openwrt/openwrt - master'
@@ -21,9 +22,9 @@ on:
           - 'openwrt/openwrt - openwrt-23.05'
           - 'openwrt/openwrt - openwrt-24.10'
           - 'openwrt/openwrt - openwrt-25.12'
-
+		  # ========== LEDE 仓库 ==========
           - 'coolsnowwolf/lede - master'
-		  
+		  # ========== immortalwrt 仓库 ==========
           - 'ImmortalWrt/immortalwrt - master'
           - 'ImmortalWrt/immortalwrt - openwrt-25.12'
           - 'ImmortalWrt/immortalwrt - openwrt-24.10'
@@ -31,7 +32,7 @@ on:
           - 'ImmortalWrt/immortalwrt - openwrt-21.02'
           - 'ImmortalWrt/immortalwrt - openwrt-18.06'
           - 'ImmortalWrt/immortalwrt - openwrt-18.06-k5.4'
-		  
+		  # ========== DIY1 仓库 ==========
           - 'DIY1 - master'
           - 'DIY1 - openwrt-25.12'
           - 'DIY1 - openwrt-24.10'
@@ -39,9 +40,9 @@ on:
           - 'DIY1 - openwrt-21.02'
           - 'DIY1 - openwrt-18.06'
           - 'DIY1 - openwrt-18.06-k5.4'
-		  
+		  # ========== DIY2 仓库 ==========
           - 'DIY2 - master'
-		  
+		  # ========== DIY3 仓库 ==========
           - 'DIY3 - main'
           - 'DIY3 - lede-17.01'
           - 'DIY3 - master'
@@ -52,7 +53,7 @@ on:
           - 'DIY3 - openwrt-23.05'
           - 'DIY3 - openwrt-24.10'
           - 'DIY3 - openwrt-25.12'
-		  
+		  # ========== 自定义 仓库 ==========
           - 'custom - custom'
       version_tag:
         description: '🏷️ 指定版本标签（可选）'
