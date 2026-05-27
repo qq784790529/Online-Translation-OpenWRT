@@ -21,7 +21,9 @@ on:
           - 'openwrt/openwrt - openwrt-23.05'
           - 'openwrt/openwrt - openwrt-24.10'
           - 'openwrt/openwrt - openwrt-25.12'
+
           - 'coolsnowwolf/lede - master'
+		  
           - 'ImmortalWrt/immortalwrt - master'
           - 'ImmortalWrt/immortalwrt - openwrt-25.12'
           - 'ImmortalWrt/immortalwrt - openwrt-24.10'
@@ -29,6 +31,7 @@ on:
           - 'ImmortalWrt/immortalwrt - openwrt-21.02'
           - 'ImmortalWrt/immortalwrt - openwrt-18.06'
           - 'ImmortalWrt/immortalwrt - openwrt-18.06-k5.4'
+		  
           - 'DIY1 - master'
           - 'DIY1 - openwrt-25.12'
           - 'DIY1 - openwrt-24.10'
@@ -36,7 +39,9 @@ on:
           - 'DIY1 - openwrt-21.02'
           - 'DIY1 - openwrt-18.06'
           - 'DIY1 - openwrt-18.06-k5.4'
+		  
           - 'DIY2 - master'
+		  
           - 'DIY3 - main'
           - 'DIY3 - lede-17.01'
           - 'DIY3 - master'
@@ -47,6 +52,7 @@ on:
           - 'DIY3 - openwrt-23.05'
           - 'DIY3 - openwrt-24.10'
           - 'DIY3 - openwrt-25.12'
+		  
           - 'custom - custom'
       version_tag:
         description: '🏷️ 指定版本标签（可选）'
