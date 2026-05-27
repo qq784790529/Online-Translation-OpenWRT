@@ -1011,226 +1011,13 @@ jobs:
           echo "================================================================"
           echo ""
           echo "💡 下一步："
-          echo "   • 第十三步 '处理本地 IPK 包' 将检查并集成预编译的 ipk"
+          echo "   • 第十三步 下载 .config 中要求的包源码（仅下载，不安装）"
           echo ""
 
       # ==========================================================================
-      # 第十三步：处理本地 IPK 包（新增功能）
+      # 第十三步：下载 .config 中要求的包源码（仅下载，不安装）
       # ==========================================================================
-      # 功能说明：
-      #   - 自动检测仓库根目录下的 local-packages/ 文件夹
-      #   - 遍历文件夹中的所有 .ipk 文件
-      #   - 为每个 ipk 自动生成 OpenWrt 标准的 Makefile
-      #   - 将 ipk 复制到 dl/ 目录供编译系统使用
-      #   - 在 .config 中自动启用对应的包 (CONFIG_PACKAGE_<包名>=y)
-      #   - 自动过滤 feeds 中已存在的包，避免冲突
-      #   - 自动跳过格式不正确的 ipk 文件
-      #   - 若文件夹不存在或为空，安全跳过
-      # ==========================================================================
-      - name: 📦 第十三步：处理本地 IPK 包
-        run: |
-          echo "================================================================"
-          echo "📦 检查本地 IPK 包..."
-          echo "================================================================"
-          echo ""
-          echo "💡 功能说明："
-          echo "   • 自动检测仓库根目录下的 local-packages/ 文件夹"
-          echo "   • 将文件夹中的 .ipk 文件自动集成到固件中"
-          echo "   • 自动生成 Makefile，无需手动配置"
-          echo "   • 自动在 .config 中启用对应的包"
-          echo "   • IPK 文件名格式要求: <包名>_<版本>_<架构>.ipk"
-          echo ""
-          
-          cd ${{ env.REPO_DIR }}
-
-          # ========== 步骤 1：检查 local-packages/ 目录是否存在 ==========
-          LOCAL_IPK_DIR="../local-packages"
-          if [ ! -d "$LOCAL_IPK_DIR" ]; then
-            echo "ℹ️  未找到 local-packages 目录，跳过本地 IPK 集成。"
-            echo "💡 如需集成预编译的 ipk，请在仓库根目录创建 local-packages/ 文件夹并放入 .ipk 文件。"
-            echo "   → 用法示例："
-            echo "     1. 在仓库根目录创建 local-packages/ 文件夹"
-            echo "     2. 将要集成的 .ipk 文件放入该文件夹"
-            echo "     3. 文件名格式: <包名>_<版本>_<架构>.ipk"
-            echo "     4. 例如: luci-app-argon-config_1.0.0-20250501_all.ipk"
-            echo "     5. 编译时自动集成，无需手动配置"
-          else
-            # ========== 步骤 2：检查是否有 .ipk 文件 ==========
-            IPK_COUNT=$(ls -1 "$LOCAL_IPK_DIR"/*.ipk 2>/dev/null | wc -l)
-            if [ "$IPK_COUNT" -eq 0 ]; then
-              echo "ℹ️  local-packages 目录为空，无 IPK 需要集成。"
-              echo "💡 请将 .ipk 文件放入 local-packages/ 文件夹中。"
-            else
-              echo "✅ 检测到 $IPK_COUNT 个 IPK 文件，开始自动集成..."
-              echo ""
-              
-              # ========== 步骤 3：创建本地包目录 ==========
-              mkdir -p package/local-packages
-              echo "📁 创建本地包目录: package/local-packages"
-              echo ""
-              
-              # ========== 步骤 4：遍历每个 .ipk 文件 ==========
-              for ipk_path in "$LOCAL_IPK_DIR"/*.ipk; do
-                [ -f "$ipk_path" ] || continue
-                
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "📦 处理: $(basename "$ipk_path")"
-                echo ""
-                
-                # 提取包名、版本、架构 (格式: <name>_<version>_<arch>.ipk)
-                filename=$(basename "$ipk_path")
-                if ! [[ "$filename" =~ ^(.+)_([^_]+)_([^_]+)\.ipk$ ]]; then
-                  echo "⚠️  文件名格式不符，跳过: $filename"
-                  echo "💡 文件名格式要求: <包名>_<版本>_<架构>.ipk"
-                  echo "   → 例如: luci-app-example_1.2.3-20250501_all.ipk"
-                  echo "   → 包名和版本必须用下划线分隔"
-                  continue
-                fi
-                
-                pkg_name="${BASH_REMATCH[1]}"
-                pkg_version="${BASH_REMATCH[2]}"
-                pkg_arch="${BASH_REMATCH[3]}"
-                
-                echo "   📛 包名: $pkg_name"
-                echo "   🔢 版本: $pkg_version"
-                echo "   💻 架构: $pkg_arch"
-                
-                # ========== 步骤 5：避免与 feeds 中已有包冲突 ==========
-                if [ -d "package/feeds" ] && grep -rq "Package/$pkg_name" package/feeds/ 2>/dev/null; then
-                  echo "⚠️  包 $pkg_name 已存在于 feeds 中，为免冲突跳过。"
-                  echo "💡 如需覆盖 feeds 中的版本，请直接修改 feeds 配置文件。"
-                  continue
-                fi
-                
-                # ========== 步骤 6：避免重复定义 ==========
-                if [ -d "package/local-packages/$pkg_name" ]; then
-                  echo "⚠️  包 $pkg_name 已由本地 IPK 定义，跳过重复项。"
-                  continue
-                fi
-                
-                echo ""
-                echo "   ✅ 通过冲突检测，开始集成..."
-                
-                # ========== 步骤 7：创建包目录并生成 Makefile ==========
-                pkg_dir="package/local-packages/$pkg_name"
-                mkdir -p "$pkg_dir"
-                
-                # 复制 ipk 到 dl 目录（编译系统从 dl 获取源文件）
-                dl_dir="$PWD/dl"
-                mkdir -p "$dl_dir"
-                cp "$ipk_path" "$dl_dir/$filename"
-                echo "   → 已复制 ipk 到 dl/ 目录"
-                
-                # ========== 步骤 8：写入 OpenWrt 标准的 Makefile ==========
-                # 该 Makefile 定义了如何从 ipk 中提取文件并安装到固件
-                cat > "$pkg_dir/Makefile" <<EOF
-# ============================================================================
-# 本地 IPK 包 Makefile（自动生成）
-# ============================================================================
-# 包名: $pkg_name
-# 版本: $pkg_version
-# 架构: $pkg_arch
-# 源文件: $filename
-# 生成时间: $(date '+%Y-%m-%d %H:%M:%S')
-# ============================================================================
-
-include \$(TOPDIR)/rules.mk
-
-PKG_NAME:=$pkg_name
-PKG_VERSION:=$pkg_version
-PKG_RELEASE:=1
-PKG_SOURCE:=$filename
-PKG_SOURCE_URL:=file://\$(TOPDIR)/dl
-
-include \$(INCLUDE_DIR)/package.mk
-
-# 包定义
-define Package/$pkg_name
-  SECTION:=local
-  CATEGORY:=Local Packages
-  TITLE:=Local package: $pkg_name
-  DEPENDS:=
-endef
-
-# 包描述
-define Package/$pkg_name/description
-  Locally provided ipk package.
-  Version: $pkg_version
-  Architecture: $pkg_arch
-endef
-
-# 准备阶段（ipk 已预编译，无需解压源码）
-define Build/Prepare
-endef
-
-# 编译阶段：从 ipk 中提取 data.tar.gz
-define Build/Compile
-	mkdir -p \$(PKG_BUILD_DIR)
-	ar p \$(DL_DIR)/\$(PKG_SOURCE) data.tar.gz | tar -xz -C \$(PKG_BUILD_DIR)/
-endef
-
-# 安装阶段：将提取的文件复制到固件根目录
-define Package/$pkg_name/install
-	\$(INSTALL_DIR) \$(1)/
-	[ -d "\$(PKG_BUILD_DIR)" ] && cp -rf \$(PKG_BUILD_DIR)/* \$(1)/ 2>/dev/null || true
-endef
-
-\$(eval \$(call BuildPackage,$pkg_name))
-EOF
-                
-                echo "   → 已生成 Makefile: $pkg_dir/Makefile"
-                
-                # ========== 步骤 9：在 .config 中自动启用该包 ==========
-                if ! grep -q "CONFIG_PACKAGE_${pkg_name}=y" .config; then
-                  echo "CONFIG_PACKAGE_${pkg_name}=y" >> .config
-                  echo "   → 已自动启用该包 (CONFIG_PACKAGE_${pkg_name}=y)"
-                else
-                  echo "   → 该包已在 .config 中启用"
-                fi
-                
-                echo ""
-                echo "   ✅ 包 $pkg_name 集成完成"
-                echo ""
-                
-              done
-              
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo ""
-              
-              # ========== 步骤 10：重新生成编译配置 ==========
-              echo "🔄 重新生成配置以包含本地 IPK..."
-              echo "   → 运行 make defconfig 应用新添加的包配置"
-              if make defconfig 2>/dev/null; then
-                echo "   ✅ make defconfig 执行成功"
-              else
-                echo "   ⚠️  make defconfig 执行可能有警告，但通常不影响编译"
-                echo "   💡 如果编译失败，请检查 ipk 文件是否完整且兼容当前 OpenWrt 版本"
-              fi
-              
-              echo ""
-              echo "✅ 所有本地 IPK 包已成功集成"
-              
-              # 显示集成的包列表
-              echo ""
-              echo "📋 已集成的本地 IPK 包列表："
-              ls -1 package/local-packages/ 2>/dev/null
-            fi
-          fi
-          
-          echo ""
-          echo "================================================================"
-          echo "✅ 本地 IPK 处理完成"
-          echo "================================================================"
-          echo ""
-          echo "💡 下一步："
-          echo "   • 第十四步 'make download -j8' 将下载所有需要的包源码"
-          echo "   • 第十五步 'make V=s -j16' 将开始编译固件"
-          echo ""
-
-      # ==========================================================================
-      # 第十四步：下载 .config 中要求的包源码（仅下载，不安装）
-      # ==========================================================================
-      - name: 📥 第十四步：下载 .config 中要求的包源码
+      - name: 📥 第十三步：下载 .config 中要求的包源码
         run: |
           echo "================================================================"
           echo "📥 开始下载 .config 中要求的包源码..."
@@ -1312,13 +1099,13 @@ EOF
           echo "================================================================"
           echo ""
           echo "💡 下一步："
-          echo "   • 第十五步 'make V=s -j16' 才会真正编译并处理这些源码"
+          echo "   • 第十四步 'make V=s -j16' 才会真正编译并处理这些源码"
           echo ""
 
       # ==========================================================================
-      # 第十五步：编译 OpenWrt（真正处理包）
+      # 第十四步：编译 OpenWrt（真正处理包）
       # ==========================================================================
-      - name: 🏗️ 第十五步：编译 OpenWrt
+      - name: 🏗️ 第十四步：编译 OpenWrt
         run: |
           echo "================================================================"
           echo "🔨 开始编译 OpenWrt..."
@@ -1391,9 +1178,9 @@ EOF
           echo ""
 
       # ==========================================================================
-      # 第十六步：上传 SSH 生成的 .config 文件（仅当启用 SSH 时）
+      # 第十五步：上传 SSH 生成的 .config 文件（仅当启用 SSH 时）
       # ==========================================================================
-      - name: 💾 第十六步：上传 SSH 生成的 .config 文件
+      - name: 💾 第十五步：上传 SSH 生成的 .config 文件
         if: ${{ github.event.inputs.enable_ssh_debug == 'true' }}
         uses: actions/upload-artifact@v4
         with:
@@ -1403,9 +1190,9 @@ EOF
         continue-on-error: true
 
       # ==========================================================================
-      # 第十七步：上传刷机包文件（只上传刷机包，不上传 ipk 等文件）
+      # 第十六步：上传刷机包文件（只上传刷机包，不上传 ipk 等文件）
       # ==========================================================================
-      - name: 📤 第十七步：上传刷机包文件（仅刷机包）
+      - name: 📤 第十六步：上传刷机包文件（仅刷机包）
         if: env.UPLOAD_FIRMWARE == 'true'
         uses: actions/upload-artifact@v4
         with:
@@ -1424,9 +1211,9 @@ EOF
         continue-on-error: true
 
       # ==========================================================================
-      # 第十八步：上传 bin 目录（可选）
+      # 第十七步：上传 bin 目录（可选）
       # ==========================================================================
-      - name: 📤 第十八步：上传 bin 目录
+      - name: 📤 第十七步：上传 bin 目录
         if: env.UPLOAD_BIN_DIR == 'true'
         uses: actions/upload-artifact@v4
         with:
@@ -1435,9 +1222,9 @@ EOF
           retention-days: 7
 
       # ==========================================================================
-      # 第十九步：发布到 Release（可选）
+      # 第十八步：发布到 Release（可选）
       # ==========================================================================
-      - name: 🚀 第十九步：发布到 Release
+      - name: 🚀 第十八步：发布到 Release
         if: env.UPLOAD_RELEASE == 'true' && github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
