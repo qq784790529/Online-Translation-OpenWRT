@@ -6,8 +6,9 @@
 
 ### 使用 GitHub Actions 构建 OpenWrt 的模板
 
-## 说明
-  - configs/文件夹里面的.config文件命名和.github/workflows/OpenWrt Multi-Source Build.yml中定义一致，如果看不懂请不要随意更改名字。
+## 目录说明
+  - configs/文件夹里面的.config文件命名请勿更改，yml中已经设定好了
+    - 
   - .github/workflows/OpenWrt Multi-Source Build.yml是Actions的自动化流程文件，里面配置库URL地址和分支版本，默认已经配好openwrt官方库、lede库以及immortalWrt库，最高分支版本为25。
   - OpenWrt Multi-Source Build.yml同时还有两个自定义库的位置，可以自行更改，注释写的很明白，如果不需要自定义库请直接使用openwrt官方库、lede库以及immortalWrt库。
   - 如果不会修改OpenWrt Multi-Source Build.yml但又同时想用自己的库可以在Run workflow创建自动化流程时 源码仓库和分支版本这里选择custom - custom手动填写
