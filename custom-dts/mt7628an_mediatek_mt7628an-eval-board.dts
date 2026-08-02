@@ -1,8 +1,50 @@
 #include "mt7628an.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/linux-event-codes.h>
 
 / {
 	compatible = "mediatek,mt7628an-eval-board", "mediatek,mt7628an-soc";
 	model = "Mediatek MT7628AN evaluation board";
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x4000000>;   // 64MB
+	};	
+
+	keys {
+		compatible = "gpio-keys";
+
+		reset {
+			label = "reset";
+			gpios = <&gpio 38 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		wlan {
+			label = "green:wlan";
+			gpios = <&gpio 44 GPIO_ACTIVE_LOW>;
+		};
+		led1 {
+			label = "led1";
+			gpios = <&gpio 42 GPIO_ACTIVE_LOW>;
+		};
+		led2 {
+			label = "led2";
+			gpios = <&gpio 41 GPIO_ACTIVE_LOW>;
+		};
+		led3 {
+			label = "led3";
+			gpios = <&gpio 40 GPIO_ACTIVE_LOW>;
+		};
+		led4 {
+			label = "led4";
+			gpios = <&gpio 39 GPIO_ACTIVE_LOW>;
+		};
+	};
 };
 
 &state_default {
@@ -56,8 +98,4 @@
 	status = "okay";
 
 	mediatek,mtd-eeprom = <&factory 0x0>;
-};
-
-&memory {
-    reg = <0x0 0x4000000>;   // 64MB
 };
