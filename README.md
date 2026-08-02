@@ -7,26 +7,26 @@
 ### 使用 GitHub Actions 构建 OpenWrt 的模板
 
 ## 目录说明
-  - configs/文件夹里面的.config文件命名请勿更改，yml中已经设定好了
-    - 
-  - .github/workflows/OpenWrt Multi-Source Build.yml是Actions的自动化流程文件，里面配置库URL地址和分支版本，默认已经配好openwrt官方库、lede库以及immortalWrt库，最高分支版本为25。
-  - OpenWrt Multi-Source Build.yml同时还有两个自定义库的位置，可以自行更改，注释写的很明白，如果不需要自定义库请直接使用openwrt官方库、lede库以及immortalWrt库。
+  - configs文件夹里面的.config文件命名请勿更改，yml中已经设定好了
+	  -  关于在config文件夹里面的.config文件说明
+		  - diy1.comfig                  // 这个是yml中第一步自定义库1调用的config。
+		  - diy2.config                   // 这个是yml中第一步自定义库2调用的config。
+		  - diy3.config                   // 这个是yml中第一步自定义库3调用的config。
+		  - immortalwrt.config      //这个是yml中第一步immortalwrt调用的config，仓库来自immortalwrt/immortalwrt。
+		  - lede.config                    //这个是yml中第一步lede调用的config，仓库来自coolsnowwolf/lede。
+		  - openwrt.config             //这个是yml中第一步openwrt调用的config，仓库来自openwrt/openwrt。
+		  - custom.config               //这个是自定义仓库，在Actions→选中yml流程→Run workflow中第一行选中custom，第三行和第四行填入仓库和版本号会调用这个config内容用于拉取软件包。
+	
   - 如果不会修改OpenWrt Multi-Source Build.yml但又同时想用自己的库可以在Run workflow创建自动化流程时 源码仓库和分支版本这里选择custom - custom手动填写
-  - 源码仓库和分支版本 custom - custom 说明：如果选择custom - custom 请填写第二栏的URL和第三栏的分支版本。
-  - diy-part1.sh 和 diy-part2.sh是自定义脚本，从P3TERX/Actions-OpenWrt大佬的文件夹里面复制过来的
 
-## 用法
-  - Fock这个项目到自己的Github账号，在自己的账号里面操作。
-  -   1、使用已经配置好的.config, 进入configs里面将自己的配置好的.config配置到相对应的 库.config 文件里面。
-  -   2、没有.config也无需担心, 有带有SSH配置流程的自动化流程方法调试。
-  - 进入Fock的过来项目, configs里面找到要用的库，将自己的.config复制进里面对应的文件。
-  - 状态栏菜单那进入Actions，左侧All workflows下面的
-  -   1、OpenWrt 多源码仓库编译 不支持SSH配置            //这个不支持ssh调试，默认使用configs里面的.config文件
-  -   2、OpenWrt 多源码仓库编译 支持SSH配置.config      //这个支持ssh调试，需要在run workflow里面勾选，如果不勾选默认使用configs里面的.config文件。
+  - .github/workflows：放置自动流程yml的位置，里面用于自动化操作的步骤。
+  
+  - diy-part1.sh 和 diy-part2.sh是自定义脚本，从P3TERX/Actions-OpenWrt大佬的文件夹里面复制过来的，目前只会用diy-part2.sh的简单用法。
+  
+  - custom-dts：文件夹中放入了主板的dts文件，如果直接使用官方默认的dts可以无视，如果需要自定义可以将修改后的dts放置在这里面，注意和config中dts要对应，在target/linux/构架类型/image/系列名称.mk中可以看到对应的。
+  
+  - custom-ipk：这个文件夹放置ipk文件，只适用于24.10及以下版本，25版本已经不用ipk文件了，但是这个安装功能好像不太成功，不建议使用。
 
-## 关于dts的问题
-  - dts 不在本项目中使用
-  - dts 需要配置在你Fock的库中，具体的 dts 的目录地址正常是在 ../target/linux/SOC架构/dts/ 里面，找到对应的板型文件修改就行
 
 ## 引用的库文件
   - [OpenWrt](https://github.com/openwrt/openwrt)
