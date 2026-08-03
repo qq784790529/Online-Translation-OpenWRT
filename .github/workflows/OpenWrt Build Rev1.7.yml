@@ -87,11 +87,11 @@ on:
         default: false
 
       # ========== 是否运行 make defconfig ==========
-      enable_defconfig:
-        description: '⚙️ 是否运行 make defconfig（补全配置依赖，通常不需要）'
-        type: boolean
-        required: false
-        default: false
+      # enable_defconfig:
+      #  description: '⚙️ 是否运行 make defconfig（补全配置依赖，通常不需要）'
+      #  type: boolean
+      #  required: false
+      #  default: false
 
       # ========== 自定义 IPK 行为选择 ==========
       ipk_behavior:
