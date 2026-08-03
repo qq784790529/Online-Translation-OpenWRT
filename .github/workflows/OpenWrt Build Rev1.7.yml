@@ -500,7 +500,7 @@ jobs:
           fi
 
       # ==========================================================================
-      # 第八步：配置 .config 文件并清理多余设备
+      # 第八步：配置 .config 文件
       # ==========================================================================
       - name: 📄 第八步：配置 .config 文件
         run: |
@@ -530,29 +530,6 @@ jobs:
               echo "   → 大小: $(wc -c < .config) bytes"
               echo "   → 配置项总数: $(grep -c '^CONFIG_' .config)"
               echo "   → 目标设备: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2 || echo '未找到')"
-
-              # ★★★ 清理多余设备，确保只有一个设备被启用（防止 defconfig 篡改）★★★
-              CURRENT_PROFILE=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
-              if [ -n "$CURRENT_PROFILE" ]; then
-                DEVICE_NAME=$(echo "$CURRENT_PROFILE" | sed 's/^DEVICE_//')
-                echo "🔍 正在清理多余设备配置，仅保留: $DEVICE_NAME"
-                # 删除所有 CONFIG_TARGET_..._DEVICE_...=y 行
-                sed -i '/^CONFIG_TARGET_.*_DEVICE_.*=y/d' .config
-                # 重新添加当前设备的配置行
-                SUBTARGET=$(grep '^CONFIG_TARGET_SUBTARGET=' .config | cut -d'"' -f2)
-                if [ -n "$SUBTARGET" ]; then
-                  echo "CONFIG_TARGET_${SUBTARGET}_DEVICE_${DEVICE_NAME}=y" >> .config
-                else
-                  # 如果无法获取 SUBTARGET，使用默认模式
-                  echo "CONFIG_TARGET_ramips_mt76x8_DEVICE_${DEVICE_NAME}=y" >> .config
-                fi
-                # 确保 CONFIG_TARGET_PROFILE 正确
-                sed -i '/^CONFIG_TARGET_PROFILE=/d' .config
-                echo "CONFIG_TARGET_PROFILE=\"$CURRENT_PROFILE\"" >> .config
-                echo "✅ 已清理多余设备，仅保留: $DEVICE_NAME"
-              else
-                echo "⚠️  未找到 CONFIG_TARGET_PROFILE，跳过清理。"
-              fi
             else
               echo "❌ .config 文件创建失败！"
               exit 1
@@ -587,25 +564,13 @@ jobs:
           fi
 
       # ==========================================================================
-      # 第十点五步：保存当前设备配置（用于 defconfig 后恢复）
-      # ==========================================================================
-      - name: 💾 保存当前设备配置
-        run: |
-          cd ${{ env.REPO_DIR }}
-          # 保存 CONFIG_TARGET_PROFILE
-          PROFILE=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
-          echo "PROFILE_BEFORE=$PROFILE" >> $GITHUB_ENV
-          # 保存所有被启用的设备配置行（用于恢复）
-          grep '^CONFIG_TARGET_.*_DEVICE_.*=y' .config > /tmp/device_lines_before.txt || true
-          echo "✅ 已保存当前设备配置: $PROFILE"
-
-      # ==========================================================================
-      # 第十一步：生成最终编译配置并强制恢复设备
+      # 第十一步：生成最终编译配置（仅在 SSH 启用时执行）
       # ==========================================================================
       - name: ⚙️ 第十一步：生成最终编译配置
+        if: ${{ github.event.inputs.enable_ssh_debug == 'true' }}
         run: |
           echo "================================================================"
-          echo "⚙️  开始生成最终编译配置..."
+          echo "⚙️  SSH 调试模式已启用，运行 make defconfig 以补全配置..."
           echo "================================================================"
           cd ${{ env.REPO_DIR }}
           if [ ! -f ".config" ]; then
@@ -613,40 +578,18 @@ jobs:
             exit 1
           fi
           cp .config .config.original
-
-          echo "运行 make defconfig ..."
           if make defconfig; then
             echo "✅ make defconfig 执行成功"
           else
             echo "❌ make defconfig 执行失败"
             exit 1
           fi
-
-          # ★★★ defconfig 之后，强制恢复正确的设备配置 ★★★
-          EXPECTED_PROFILE="DEVICE_hongdian_h8850-v20"
-          CURRENT_PROFILE=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
-          if [ "$CURRENT_PROFILE" != "$EXPECTED_PROFILE" ]; then
-            echo "⚠️  make defconfig 将设备改为: $CURRENT_PROFILE"
-            echo "🔄 强制恢复为: $EXPECTED_PROFILE"
-            # 恢复 CONFIG_TARGET_PROFILE
-            sed -i 's/^CONFIG_TARGET_PROFILE=.*/CONFIG_TARGET_PROFILE="'"$EXPECTED_PROFILE"'"/' .config
-            # 删除所有设备配置行
-            sed -i '/^CONFIG_TARGET_.*_DEVICE_.*=y/d' .config
-            # 重新添加正确的设备配置
-            echo "CONFIG_TARGET_ramips_mt76x8_DEVICE_hongdian_h8850-v20=y" >> .config
-            # 重新运行 defconfig 解决依赖（但保留我们的设备）
-            echo "重新运行 make defconfig 以解决依赖..."
-            make defconfig
-            echo "✅ 设备配置已强制恢复"
-          else
-            echo "✅ 设备配置未被篡改: $CURRENT_PROFILE"
-          fi
-
           echo "   → 当前目标设备: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)"
           echo "   → 软件包数量: $(grep -c '^CONFIG_PACKAGE_.*=y' .config)"
           echo "================================================================"
-          echo "✅ 最终编译配置生成完成"
+          echo "✅ 配置生成完成"
           echo "================================================================"
+      # 如果 SSH 未启用，则跳过此步骤，直接使用拷贝的 .config
           
       # ==========================================================================
       # 第十一点五步：添加 USB 设备 VID/PID 驱动支持（可扩展）
