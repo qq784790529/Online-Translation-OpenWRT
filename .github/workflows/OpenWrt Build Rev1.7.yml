@@ -260,7 +260,7 @@ jobs:
           libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz \
           mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pyelftools \
           libpython3-dev qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip \
-          vim wget xmlto xxd zlib1g-dev python3-setuptools
+          vim wget xmlto xxd zlib1g-dev python3-setuptools coreutils
           
           echo "================================================================"
           echo "✅ 编译依赖安装完成"
@@ -569,32 +569,38 @@ jobs:
             echo "❌ SSH 会话结束但未找到 .config 文件"
             exit 1
           fi
-
       # ==========================================================================
-      # 第十一步：生成最终编译配置（仅在启用时执行）
+      # 第十一步：补全编译配置
       # ==========================================================================
-      - name: ⚙️ 第十一步：生成最终编译配置
-        if: ${{ github.event.inputs.enable_ssh_debug == 'true' || github.event.inputs.enable_defconfig == 'true' }}
+      - name: ⚙️ 第十一步：补全编译配置（使用 olddefconfig 保护用户设置）
         run: |
           echo "================================================================"
-          echo "⚙️  运行 make defconfig 以补全配置..."
+          echo "⚙️  运行 make olddefconfig 以补全配置（不会覆盖用户选择）..."
           echo "================================================================"
           cd ${{ env.REPO_DIR }}
           if [ ! -f ".config" ]; then
             echo "❌ 缺少 .config 文件，无法继续！"
             exit 1
           fi
-          cp .config .config.original
-          if make defconfig; then
-            echo "✅ make defconfig 执行成功"
+          # 备份原配置
+          cp .config .config.before_olddefconfig
+          if make olddefconfig; then
+            echo "✅ make olddefconfig 执行成功"
+            # 检查目标板是否变化（理论不会）
+            PROFILE_BEFORE=$(grep '^CONFIG_TARGET_PROFILE=' .config.before_olddefconfig | cut -d'"' -f2)
+            PROFILE_AFTER=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
+            if [ "$PROFILE_BEFORE" != "$PROFILE_AFTER" ]; then
+              echo "⚠️ 警告：目标板从 '$PROFILE_BEFORE' 变为 '$PROFILE_AFTER'，请检查！"
+            else
+              echo "✅ 目标板保持为: $PROFILE_AFTER"
+            fi
+            echo "   → 软件包数量: $(grep -c '^CONFIG_PACKAGE_.*=y' .config)"
           else
-            echo "❌ make defconfig 执行失败"
+            echo "❌ make olddefconfig 执行失败"
             exit 1
           fi
-          echo "   → 当前目标设备: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)"
-          echo "   → 软件包数量: $(grep -c '^CONFIG_PACKAGE_.*=y' .config)"
           echo "================================================================"
-          echo "✅ 配置生成完成"
+          echo "✅ 配置补全完成"
           echo "================================================================"
 
       # ==========================================================================
@@ -640,6 +646,51 @@ jobs:
           
           echo "================================================================"
           echo "✅ USB 设备驱动添加完成"
+          echo "================================================================"
+      
+      # ==========================================================================
+      # 第十一点六步：修复 binutils 下载哈希
+      # ==========================================================================     
+      - name: 🔧 修复 binutils 下载哈希
+        run: |
+          echo "================================================================"
+          echo "🔧 检查并修复 binutils 下载哈希..."
+          echo "================================================================"
+          cd ${{ env.REPO_DIR }}
+
+          BINUTILS_MAKEFILE="tools/binutils/Makefile"
+          if [ ! -f "$BINUTILS_MAKEFILE" ]; then
+            echo "⚠️ 未找到 $BINUTILS_MAKEFILE，跳过修复。"
+            exit 0
+          fi
+
+          PKG_VERSION=$(grep '^PKG_VERSION:=' $BINUTILS_MAKEFILE | cut -d= -f2 | tr -d ' ')
+          PKG_HASH=$(grep '^PKG_HASH:=' $BINUTILS_MAKEFILE | cut -d= -f2 | tr -d ' ')
+
+          echo "当前 binutils 版本: $PKG_VERSION"
+          echo "当前哈希: $PKG_HASH"
+
+          DL_DIR="dl"
+          mkdir -p "$DL_DIR"
+          FILENAME="binutils-$PKG_VERSION.tar.xz"
+          FILEPATH="$DL_DIR/$FILENAME"
+
+          if [ ! -f "$FILEPATH" ]; then
+            echo "📥 下载 binutils-$PKG_VERSION..."
+            wget -O "$FILEPATH" "https://ftp.gnu.org/gnu/binutils/binutils-$PKG_VERSION.tar.xz" || curl -L -o "$FILEPATH" "https://ftp.gnu.org/gnu/binutils/binutils-$PKG_VERSION.tar.xz"
+          fi
+
+          if [ -f "$FILEPATH" ]; then
+            NEW_HASH=$(sha256sum "$FILEPATH" | awk '{print $1}')
+            echo "✅ 计算得到新哈希: $NEW_HASH"
+            sed -i "s/^PKG_HASH:=.*/PKG_HASH:=$NEW_HASH/" "$BINUTILS_MAKEFILE"
+            echo "✅ 已更新 $BINUTILS_MAKEFILE 中的哈希值"
+          else
+            echo "❌ 无法下载 binutils 源码包，请检查网络或手动处理。"
+            exit 1
+          fi
+          echo "================================================================"
+          echo "✅ binutils 哈希修复完成"
           echo "================================================================"
 
       # ==========================================================================
@@ -731,7 +782,7 @@ jobs:
           echo "================================================================"
           echo "✅ 自定义 dts 替换检查完成"
           echo "================================================================"
-
+      
       # ==========================================================================
       # 第十三步：下载 .config 中要求的包源码
       # ==========================================================================
@@ -746,14 +797,16 @@ jobs:
             exit 1
           fi
           CPU_CORES=$(nproc)
+          echo "🚀 使用 $CPU_CORES 个线程并行下载..."
           if make download -j$CPU_CORES; then
             echo "✅ 源码下载成功"
           else
-            echo "⚠️  并行下载失败，尝试单线程..."
+            echo "⚠️  并行下载失败，尝试单线程（显示详细输出）..."
             if make download -j1 V=s; then
               echo "✅ 单线程下载成功"
             else
               echo "❌ 源码下载失败！"
+              echo "请检查上述错误信息，可能是网络问题或哈希不匹配。"
               exit 1
             fi
           fi
