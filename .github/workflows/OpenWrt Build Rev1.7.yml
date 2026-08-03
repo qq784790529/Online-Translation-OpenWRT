@@ -569,10 +569,7 @@ jobs:
             echo "❌ SSH 会话结束但未找到 .config 文件"
             exit 1
           fi
-      # ==========================================================================
-      # 第十一步：补全编译配置
-      # ==========================================================================
-      - name: ⚙️ 第十一步：补全编译配置（使用 olddefconfig 保护用户设置）
+      - name: ⚙️ 第十一步：补全编译配置（自动修复配置同步问题）
         run: |
           echo "================================================================"
           echo "⚙️  运行 make olddefconfig 以补全配置（不会覆盖用户选择）..."
@@ -582,22 +579,35 @@ jobs:
             echo "❌ 缺少 .config 文件，无法继续！"
             exit 1
           fi
-          # 备份原配置
-          cp .config .config.before_olddefconfig
-          if make olddefconfig; then
+
+          # 尝试直接使用 olddefconfig（带详细输出）
+          if make olddefconfig V=s; then
             echo "✅ make olddefconfig 执行成功"
-            # 检查目标板是否变化（理论不会）
-            PROFILE_BEFORE=$(grep '^CONFIG_TARGET_PROFILE=' .config.before_olddefconfig | cut -d'"' -f2)
-            PROFILE_AFTER=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
-            if [ "$PROFILE_BEFORE" != "$PROFILE_AFTER" ]; then
-              echo "⚠️ 警告：目标板从 '$PROFILE_BEFORE' 变为 '$PROFILE_AFTER'，请检查！"
-            else
-              echo "✅ 目标板保持为: $PROFILE_AFTER"
-            fi
+            echo "   → 当前目标设备: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)"
             echo "   → 软件包数量: $(grep -c '^CONFIG_PACKAGE_.*=y' .config)"
           else
-            echo "❌ make olddefconfig 执行失败"
-            exit 1
+            echo "⚠️  make olddefconfig 失败，尝试使用 defconfig 并恢复目标板..."
+            # 备份当前配置
+            cp .config .config.user
+            # 提取关键目标板设置
+            PROFILE=$(grep '^CONFIG_TARGET_PROFILE=' .config.user | cut -d'"' -f2)
+            BOARD=$(grep '^CONFIG_TARGET_BOARD=' .config.user | cut -d'"' -f2)
+            SUBTARGET=$(grep '^CONFIG_TARGET_SUBTARGET=' .config.user | cut -d'"' -f2)
+            # 生成完整默认配置
+            make defconfig
+            # 恢复用户指定的目标板选项（如果存在）
+            [ -n "$PROFILE" ] && sed -i "s/^CONFIG_TARGET_PROFILE=.*/CONFIG_TARGET_PROFILE=\"$PROFILE\"/" .config
+            [ -n "$BOARD" ] && sed -i "s/^CONFIG_TARGET_BOARD=.*/CONFIG_TARGET_BOARD=\"$BOARD\"/" .config
+            [ -n "$SUBTARGET" ] && sed -i "s/^CONFIG_TARGET_SUBTARGET=.*/CONFIG_TARGET_SUBTARGET=\"$SUBTARGET\"/" .config
+            # 再次运行 olddefconfig 补全
+            if make olddefconfig V=s; then
+              echo "✅ 修复后 make olddefconfig 执行成功"
+              echo "   → 当前目标设备: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)"
+              echo "   → 软件包数量: $(grep -c '^CONFIG_PACKAGE_.*=y' .config)"
+            else
+              echo "❌ 修复后 make olddefconfig 仍然失败，请检查错误信息。"
+              exit 1
+            fi
           fi
           echo "================================================================"
           echo "✅ 配置补全完成"
