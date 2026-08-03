@@ -647,6 +647,8 @@ jobs:
             echo "ℹ️  未找到 custom-dts 目录，跳过。"
           else
             echo "✅ 检测到 custom-dts/ 目录，将进行自定义 dts 替换。"
+
+            # ★★★ 直接从 CONFIG_TARGET_PROFILE 读取设备名（不受 defconfig 干扰）★★★
             PROFILE_LINE=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
             if [ -z "$PROFILE_LINE" ]; then
               echo "⚠️  未找到 CONFIG_TARGET_PROFILE，无法确定设备。跳过。"
@@ -655,7 +657,6 @@ jobs:
               device_name=$(echo "$PROFILE_LINE" | sed 's/^DEVICE_//')
               echo "🔍 发现设备: $device_name"
 
-              # 后续查找 DTS 和替换逻辑保持不变
               TARGET_BOARD=$(grep 'CONFIG_TARGET_BOARD=' .config | cut -d'"' -f2)
               if [ -z "$TARGET_BOARD" ]; then
                 echo "⚠️  无法确定目标平台，跳过。"
@@ -664,6 +665,7 @@ jobs:
                 echo "📁 正在查找 dts 目录..."
                 DTS_DIR=""
                 DTS_FILENAME=""
+
                 for dir in target/linux/$TARGET_BOARD/dts*; do
                   if [ -d "$dir" ]; then
                     # 1️⃣ 完全匹配（device_name.dts）
