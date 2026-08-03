@@ -600,7 +600,7 @@ jobs:
           echo "✅ 已保存当前设备配置: $PROFILE"
 
       # ==========================================================================
-      # 第十一步：生成最终编译配置
+      # 第十一步：生成最终编译配置并强制恢复设备
       # ==========================================================================
       - name: ⚙️ 第十一步：生成最终编译配置
         run: |
@@ -613,6 +613,7 @@ jobs:
             exit 1
           fi
           cp .config .config.original
+
           echo "运行 make defconfig ..."
           if make defconfig; then
             echo "✅ make defconfig 执行成功"
@@ -620,6 +621,27 @@ jobs:
             echo "❌ make defconfig 执行失败"
             exit 1
           fi
+
+          # ★★★ defconfig 之后，强制恢复正确的设备配置 ★★★
+          EXPECTED_PROFILE="DEVICE_hongdian_h8850-v20"
+          CURRENT_PROFILE=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
+          if [ "$CURRENT_PROFILE" != "$EXPECTED_PROFILE" ]; then
+            echo "⚠️  make defconfig 将设备改为: $CURRENT_PROFILE"
+            echo "🔄 强制恢复为: $EXPECTED_PROFILE"
+            # 恢复 CONFIG_TARGET_PROFILE
+            sed -i 's/^CONFIG_TARGET_PROFILE=.*/CONFIG_TARGET_PROFILE="'"$EXPECTED_PROFILE"'"/' .config
+            # 删除所有设备配置行
+            sed -i '/^CONFIG_TARGET_.*_DEVICE_.*=y/d' .config
+            # 重新添加正确的设备配置
+            echo "CONFIG_TARGET_ramips_mt76x8_DEVICE_hongdian_h8850-v20=y" >> .config
+            # 重新运行 defconfig 解决依赖（但保留我们的设备）
+            echo "重新运行 make defconfig 以解决依赖..."
+            make defconfig
+            echo "✅ 设备配置已强制恢复"
+          else
+            echo "✅ 设备配置未被篡改: $CURRENT_PROFILE"
+          fi
+
           echo "   → 当前目标设备: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)"
           echo "   → 软件包数量: $(grep -c '^CONFIG_PACKAGE_.*=y' .config)"
           echo "================================================================"
