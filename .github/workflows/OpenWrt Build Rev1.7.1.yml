@@ -87,11 +87,11 @@ on:
         default: false
 
       # ========== 是否运行 make defconfig ==========
-      enable_defconfig:
-        description: '⚙️ 是否运行 make defconfig 生成完整编译配置（默认不勾选，除非需要补全配置）'
-        type: boolean
-        required: false
-        default: false
+      #enable_defconfig:
+      #  description: '⚙️ 是否运行 make defconfig 生成完整编译配置（默认不勾选，除非需要补全配置）'
+      #  type: boolean
+      #  required: false
+      #  default: false
 
       # ========== 自定义 IPK 行为选择 ==========
       ipk_behavior:
@@ -571,10 +571,9 @@ jobs:
           fi
 
       # ==========================================================================
-      # 第十一步：生成完整编译配置（保护用户板型）
+      # 第十一步：生成完整编译配置
       # ==========================================================================
-      - name: ⚙️ 第十一步：生成完整编译配置（保护用户板型）
-        if: ${{ github.event.inputs.enable_defconfig == 'true' }}
+      - name: ⚙️ 第十一步：生成完整编译配置
         run: |
           echo "================================================================"
           echo "⚙️  生成完整编译配置..."
