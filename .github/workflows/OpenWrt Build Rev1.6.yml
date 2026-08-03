@@ -563,7 +563,20 @@ jobs:
           fi
 
       # ==========================================================================
-      # 第十一步：生成最终编译配置
+      # 第十点五步：保存当前设备配置（用于 defconfig 后恢复）
+      # ==========================================================================
+      - name: 💾 保存当前设备配置
+        run: |
+          cd ${{ env.REPO_DIR }}
+          # 保存 CONFIG_TARGET_PROFILE
+          PROFILE=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
+          echo "PROFILE_BEFORE=$PROFILE" >> $GITHUB_ENV
+          # 保存所有被启用的设备配置行（用于恢复）
+          grep '^CONFIG_TARGET_.*_DEVICE_.*=y' .config > /tmp/device_lines_before.txt || true
+          echo "✅ 已保存当前设备配置: $PROFILE"
+
+      # ==========================================================================
+      # 第十一步：生成最终编译配置（并恢复设备选择）
       # ==========================================================================
       - name: ⚙️ 第十一步：生成最终编译配置
         run: |
@@ -583,6 +596,27 @@ jobs:
             echo "❌ make defconfig 执行失败"
             exit 1
           fi
+
+          # ★★★ 恢复之前保存的设备配置（防止 defconfig 篡改）★★★
+          PROFILE_AFTER=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
+          if [ "$PROFILE_AFTER" != "${{ env.PROFILE_BEFORE }}" ]; then
+            echo "⚠️  CONFIG_TARGET_PROFILE 被 defconfig 修改为: $PROFILE_AFTER"
+            echo "🔄 恢复为: ${{ env.PROFILE_BEFORE }}"
+            # 恢复 CONFIG_TARGET_PROFILE
+            sed -i 's/^CONFIG_TARGET_PROFILE=.*/CONFIG_TARGET_PROFILE="${{ env.PROFILE_BEFORE }}"/' .config
+            # 清除所有设备配置行，然后从备份中恢复
+            sed -i '/^CONFIG_TARGET_.*_DEVICE_.*=y/d' .config
+            if [ -f /tmp/device_lines_before.txt ]; then
+              cat /tmp/device_lines_before.txt >> .config
+            fi
+            # 重新运行 defconfig 以解决依赖（但保留我们的设备）
+            make defconfig
+            echo "✅ 设备配置已恢复"
+          else
+            echo "✅ 设备配置未被篡改，保持为: $PROFILE_AFTER"
+          fi
+
+          echo "   → 当前目标设备: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)"
           echo "   → 软件包数量: $(grep -c '^CONFIG_PACKAGE_.*=y' .config)"
           echo "================================================================"
           echo "✅ 最终编译配置生成完成"
