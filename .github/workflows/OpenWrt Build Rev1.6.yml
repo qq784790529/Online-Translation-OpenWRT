@@ -500,7 +500,7 @@ jobs:
           fi
 
       # ==========================================================================
-      # 第八步：配置 .config 文件
+      # 第八步：配置 .config 文件并清理多余设备
       # ==========================================================================
       - name: 📄 第八步：配置 .config 文件
         run: |
@@ -522,9 +522,7 @@ jobs:
               ls -la ../configs/
               exit 1
             fi
-            # 删除默认的 .config
             rm -f .config
-            # 拷贝指定配置文件并重命名为 .config
             cp -f "../${{ env.CONFIG_FILE }}" .config
             if [ -f ".config" ]; then
               echo "✅ 配置文件已复制并重命名为 .config"
@@ -532,6 +530,29 @@ jobs:
               echo "   → 大小: $(wc -c < .config) bytes"
               echo "   → 配置项总数: $(grep -c '^CONFIG_' .config)"
               echo "   → 目标设备: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2 || echo '未找到')"
+
+              # ★★★ 清理多余设备，确保只有一个设备被启用（防止 defconfig 篡改）★★★
+              CURRENT_PROFILE=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
+              if [ -n "$CURRENT_PROFILE" ]; then
+                DEVICE_NAME=$(echo "$CURRENT_PROFILE" | sed 's/^DEVICE_//')
+                echo "🔍 正在清理多余设备配置，仅保留: $DEVICE_NAME"
+                # 删除所有 CONFIG_TARGET_..._DEVICE_...=y 行
+                sed -i '/^CONFIG_TARGET_.*_DEVICE_.*=y/d' .config
+                # 重新添加当前设备的配置行
+                SUBTARGET=$(grep '^CONFIG_TARGET_SUBTARGET=' .config | cut -d'"' -f2)
+                if [ -n "$SUBTARGET" ]; then
+                  echo "CONFIG_TARGET_${SUBTARGET}_DEVICE_${DEVICE_NAME}=y" >> .config
+                else
+                  # 如果无法获取 SUBTARGET，使用默认模式
+                  echo "CONFIG_TARGET_ramips_mt76x8_DEVICE_${DEVICE_NAME}=y" >> .config
+                fi
+                # 确保 CONFIG_TARGET_PROFILE 正确
+                sed -i '/^CONFIG_TARGET_PROFILE=/d' .config
+                echo "CONFIG_TARGET_PROFILE=\"$CURRENT_PROFILE\"" >> .config
+                echo "✅ 已清理多余设备，仅保留: $DEVICE_NAME"
+              else
+                echo "⚠️  未找到 CONFIG_TARGET_PROFILE，跳过清理。"
+              fi
             else
               echo "❌ .config 文件创建失败！"
               exit 1
