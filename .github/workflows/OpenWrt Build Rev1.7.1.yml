@@ -704,7 +704,7 @@ jobs:
       # ==========================================================================
       # 第十二步：替换自定义 dts/dtsi 文件（精确匹配版）
       # ==========================================================================
-      - name: 🧩 第十二步：替换自定义 dts/dtsi 文件
+      - name: 🧩 第十二步：替换自定义 dts/dtsi 文件（自动匹配文件名）
         run: |
           echo "================================================================"
           echo "📄 检查并替换自定义 dts/dtsi 文件..."
@@ -715,75 +715,61 @@ jobs:
             echo "ℹ️  未找到 custom-dts 目录，跳过。"
           else
             echo "✅ 检测到 custom-dts/ 目录，将进行自定义 dts 替换。"
-
-            PROFILE_LINE=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
-            if [ -z "$PROFILE_LINE" ]; then
-              echo "⚠️  未找到 CONFIG_TARGET_PROFILE，无法确定设备。跳过。"
-            else
-              device_name=$(echo "$PROFILE_LINE" | sed 's/^DEVICE_//')
-              echo "🔍 发现设备: $device_name"
-
-              TARGET_BOARD=$(grep 'CONFIG_TARGET_BOARD=' .config | cut -d'"' -f2)
-              if [ -z "$TARGET_BOARD" ]; then
-                echo "⚠️  无法确定目标平台，跳过。"
-              else
-                echo "🎯 目标平台: $TARGET_BOARD"
-                echo "📁 正在查找 dts 目录..."
-                DTS_DIR=""
-                DTS_FILENAME=""
-
-                for dir in target/linux/$TARGET_BOARD/dts*; do
-                  if [ -d "$dir" ]; then
-                    # 1️⃣ 完全匹配（device_name.dts）
-                    if [ -f "$dir/${device_name}.dts" ]; then
-                      DTS_DIR="$dir"
-                      DTS_FILENAME="${device_name}.dts"
-                      echo "   ✅ 完全匹配: ${device_name}.dts"
-                      break
-                    fi
-                    # 2️⃣ 匹配带 SoC 前缀（mt7628an_xxx.dts）
-                    if [ -f "$dir/mt7628an_${device_name}.dts" ]; then
-                      DTS_DIR="$dir"
-                      DTS_FILENAME="mt7628an_${device_name}.dts"
-                      echo "   ✅ 前缀匹配: mt7628an_${device_name}.dts"
-                      break
-                    fi
-                    # 3️⃣ 匹配带其他常见前缀
-                    SOC_PREFIX=$(grep 'CONFIG_TARGET_SUBTARGET=' .config | cut -d'"' -f2 | sed 's/mt//' | sed 's/_//')
-                    if [ -n "$SOC_PREFIX" ] && [ -f "$dir/mt${SOC_PREFIX}_${device_name}.dts" ]; then
-                      DTS_DIR="$dir"
-                      DTS_FILENAME="mt${SOC_PREFIX}_${device_name}.dts"
-                      echo "   ✅ SoC 前缀匹配: mt${SOC_PREFIX}_${device_name}.dts"
-                      break
-                    fi
-                    # 4️⃣ 最后尝试模糊匹配（后备）
-                    FOUND=$(find "$dir" -maxdepth 1 -type f -name "*.dts" | grep -E "/.*${device_name}\.dts$" | head -n 1)
-                    if [ -n "$FOUND" ]; then
-                      DTS_DIR="$dir"
-                      DTS_FILENAME=$(basename "$FOUND")
-                      echo "   ⚠️  模糊匹配（后备）: $DTS_FILENAME"
-                      break
-                    fi
-                  fi
-                done
-
-                if [ -z "$DTS_DIR" ]; then
-                  echo "⚠️  未找到包含 '${device_name}' 的 .dts 文件，跳过。"
+            
+            TARGET_BOARD=$(grep 'CONFIG_TARGET_BOARD=' .config | cut -d'"' -f2)
+            if [ -z "$TARGET_BOARD" ]; then
+              echo "⚠️  无法确定目标平台，跳过。"
+              exit 0
+            fi
+            echo "🎯 目标平台: $TARGET_BOARD"
+            
+            # 递归查找所有 dts 文件，建立文件名到路径的映射
+            declare -A DTS_MAP
+            DTS_DIRS=()
+            for dir in target/linux/$TARGET_BOARD/dts*; do
+              if [ -d "$dir" ]; then
+                DTS_DIRS+=("$dir")
+              fi
+            done
+            if [ ${#DTS_DIRS[@]} -eq 0 ]; then
+              echo "⚠️  未找到 dts 目录，跳过。"
+              exit 0
+            fi
+            
+            echo "📁 扫描 dts 目录..."
+            for dts_dir in "${DTS_DIRS[@]}"; do
+              # 递归查找所有 .dts 和 .dtsi 文件
+              while IFS= read -r -d '' file; do
+                fname=$(basename "$file")
+                # 如果有同名文件，保留第一个找到的（通常只有一处）
+                if [ -z "${DTS_MAP[$fname]}" ]; then
+                  DTS_MAP["$fname"]="$file"
+                fi
+              done < <(find "$dts_dir" -type f \( -name "*.dts" -o -name "*.dtsi" \) -print0)
+            done
+            
+            echo "📄 找到 ${#DTS_MAP[@]} 个 dts/dtsi 文件"
+            
+            REPLACED_COUNT=0
+            for custom_file in "$CUSTOM_DTS_DIR"/*; do
+              if [ -f "$custom_file" ]; then
+                fname=$(basename "$custom_file")
+                if [ -n "${DTS_MAP[$fname]}" ]; then
+                  target_path="${DTS_MAP[$fname]}"
+                  echo "🔄 替换文件: $fname -> $target_path"
+                  cp -f "$custom_file" "$target_path"
+                  REPLACED_COUNT=$((REPLACED_COUNT+1))
+                  echo "   ✅ 已替换"
                 else
-                  echo "📁 找到 dts 目录: $DTS_DIR"
-                  echo "📄 匹配的 dts 文件: $DTS_FILENAME"
-
-                  # ★★★ 核心替换逻辑：只替换与当前设备名匹配的 dts 文件 ★★★
-                  CUSTOM_FILE="$CUSTOM_DTS_DIR/$DTS_FILENAME"
-                  if [ -f "$CUSTOM_FILE" ]; then
-                    echo "🔄 替换文件: $DTS_FILENAME (来源: custom-dts)"
-                    cp -f "$CUSTOM_FILE" "$DTS_DIR/$DTS_FILENAME"
-                    echo "   ✅ 已替换"
-                  else
-                    echo "ℹ️  custom-dts 中没有 $DTS_FILENAME，保留官方 DTS。"
-                  fi
+                  echo "ℹ️  文件 $fname 在 dts 目录中不存在，忽略。"
                 fi
               fi
+            done
+            
+            if [ $REPLACED_COUNT -eq 0 ]; then
+              echo "⚠️  没有找到可替换的 dts 文件（请检查 custom-dts 中的文件名是否与官方 dts 文件名一致）"
+            else
+              echo "✅ 成功替换了 $REPLACED_COUNT 个文件"
             fi
           fi
           echo ""
