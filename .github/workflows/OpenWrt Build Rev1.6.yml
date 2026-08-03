@@ -522,13 +522,16 @@ jobs:
               ls -la ../configs/
               exit 1
             fi
+            # 删除默认的 .config
             rm -f .config
+            # 拷贝指定配置文件并重命名为 .config
             cp -f "../${{ env.CONFIG_FILE }}" .config
             if [ -f ".config" ]; then
               echo "✅ 配置文件已复制并重命名为 .config"
               echo "   → 来源: ${{ env.CONFIG_FILE }}"
               echo "   → 大小: $(wc -c < .config) bytes"
               echo "   → 配置项总数: $(grep -c '^CONFIG_' .config)"
+              echo "   → 目标设备: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2 || echo '未找到')"
             else
               echo "❌ .config 文件创建失败！"
               exit 1
@@ -576,7 +579,7 @@ jobs:
           echo "✅ 已保存当前设备配置: $PROFILE"
 
       # ==========================================================================
-      # 第十一步：生成最终编译配置（并恢复设备选择）
+      # 第十一步：生成最终编译配置
       # ==========================================================================
       - name: ⚙️ 第十一步：生成最终编译配置
         run: |
@@ -596,26 +599,6 @@ jobs:
             echo "❌ make defconfig 执行失败"
             exit 1
           fi
-
-          # ★★★ 恢复之前保存的设备配置（防止 defconfig 篡改）★★★
-          PROFILE_AFTER=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
-          if [ "$PROFILE_AFTER" != "${{ env.PROFILE_BEFORE }}" ]; then
-            echo "⚠️  CONFIG_TARGET_PROFILE 被 defconfig 修改为: $PROFILE_AFTER"
-            echo "🔄 恢复为: ${{ env.PROFILE_BEFORE }}"
-            # 恢复 CONFIG_TARGET_PROFILE
-            sed -i 's/^CONFIG_TARGET_PROFILE=.*/CONFIG_TARGET_PROFILE="${{ env.PROFILE_BEFORE }}"/' .config
-            # 清除所有设备配置行，然后从备份中恢复
-            sed -i '/^CONFIG_TARGET_.*_DEVICE_.*=y/d' .config
-            if [ -f /tmp/device_lines_before.txt ]; then
-              cat /tmp/device_lines_before.txt >> .config
-            fi
-            # 重新运行 defconfig 以解决依赖（但保留我们的设备）
-            make defconfig
-            echo "✅ 设备配置已恢复"
-          else
-            echo "✅ 设备配置未被篡改，保持为: $PROFILE_AFTER"
-          fi
-
           echo "   → 当前目标设备: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)"
           echo "   → 软件包数量: $(grep -c '^CONFIG_PACKAGE_.*=y' .config)"
           echo "================================================================"
@@ -682,12 +665,10 @@ jobs:
           else
             echo "✅ 检测到 custom-dts/ 目录，将进行自定义 dts 替换。"
 
-            # ★★★ 直接从 CONFIG_TARGET_PROFILE 读取设备名（不受 defconfig 干扰）★★★
             PROFILE_LINE=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2)
             if [ -z "$PROFILE_LINE" ]; then
               echo "⚠️  未找到 CONFIG_TARGET_PROFILE，无法确定设备。跳过。"
             else
-              # 去掉 "DEVICE_" 前缀，得到设备名
               device_name=$(echo "$PROFILE_LINE" | sed 's/^DEVICE_//')
               echo "🔍 发现设备: $device_name"
 
@@ -704,27 +685,31 @@ jobs:
                   if [ -d "$dir" ]; then
                     # 1️⃣ 完全匹配（device_name.dts）
                     if [ -f "$dir/${device_name}.dts" ]; then
-                      DTS_DIR="$dir"; DTS_FILENAME="${device_name}.dts"
+                      DTS_DIR="$dir"
+                      DTS_FILENAME="${device_name}.dts"
                       echo "   ✅ 完全匹配: ${device_name}.dts"
                       break
                     fi
                     # 2️⃣ 匹配带 SoC 前缀（mt7628an_xxx.dts）
                     if [ -f "$dir/mt7628an_${device_name}.dts" ]; then
-                      DTS_DIR="$dir"; DTS_FILENAME="mt7628an_${device_name}.dts"
+                      DTS_DIR="$dir"
+                      DTS_FILENAME="mt7628an_${device_name}.dts"
                       echo "   ✅ 前缀匹配: mt7628an_${device_name}.dts"
                       break
                     fi
                     # 3️⃣ 匹配带其他常见前缀
                     SOC_PREFIX=$(grep 'CONFIG_TARGET_SUBTARGET=' .config | cut -d'"' -f2 | sed 's/mt//' | sed 's/_//')
                     if [ -n "$SOC_PREFIX" ] && [ -f "$dir/mt${SOC_PREFIX}_${device_name}.dts" ]; then
-                      DTS_DIR="$dir"; DTS_FILENAME="mt${SOC_PREFIX}_${device_name}.dts"
+                      DTS_DIR="$dir"
+                      DTS_FILENAME="mt${SOC_PREFIX}_${device_name}.dts"
                       echo "   ✅ SoC 前缀匹配: mt${SOC_PREFIX}_${device_name}.dts"
                       break
                     fi
                     # 4️⃣ 最后尝试模糊匹配（后备）
                     FOUND=$(find "$dir" -maxdepth 1 -type f -name "*.dts" | grep -E "/.*${device_name}\.dts$" | head -n 1)
                     if [ -n "$FOUND" ]; then
-                      DTS_DIR="$dir"; DTS_FILENAME=$(basename "$FOUND")
+                      DTS_DIR="$dir"
+                      DTS_FILENAME=$(basename "$FOUND")
                       echo "   ⚠️  模糊匹配（后备）: $DTS_FILENAME"
                       break
                     fi
