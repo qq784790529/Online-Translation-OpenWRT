@@ -88,7 +88,7 @@ on:
 
       # ========== 域格4G 模组添加选项 ==========
       enable_yuge_4g:
-        description: '📶 是否启用域格(Yuge) JC3 4G模块支持（自动添加驱动、过滤接口及拨号脚本）'
+        description: '📶 是否启用域格(Yuge) 4G模块支持（自动添加驱动、过滤接口及拨号脚本）'
         type: boolean
         required: false
         default: false        
