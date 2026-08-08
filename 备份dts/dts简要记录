@@ -1,0 +1,16 @@
+目前RY7628和E103-W20都是使用的hlk的7628专用dts修改的，内容没啥区别注意FLASH容量即可
+
+这是E103-W20使用的32M FLASH配置
+  partition@50000 {
+    compatible = "denx,uimage";
+    label = "firmware";
+    reg = <0x50000 0x1fb0000>;   // 32MB Flash
+};
+
+
+这是RY7628使用的16M FLASH配置，如果是32M就直接用备份的dts就行
+  partition@50000 {
+    compatible = "denx,uimage";
+    label = "firmware";
+    reg = <0x50000 0xfb0000>;
+  };
