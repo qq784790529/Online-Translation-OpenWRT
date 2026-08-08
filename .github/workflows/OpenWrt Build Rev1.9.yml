@@ -632,7 +632,7 @@ jobs:
           echo "================================================================"
           cd ${{ env.REPO_DIR }}
           
-          # 从 .config 中读取目标平台和子平台
+          # ---------- 从 .config 动态读取目标平台和子平台 ----------
           BOARD=$(grep '^CONFIG_TARGET_BOARD=' .config | cut -d'"' -f2)
           SUBTARGET=$(grep '^CONFIG_TARGET_SUBTARGET=' .config | cut -d'"' -f2)
           
@@ -644,12 +644,12 @@ jobs:
           echo "📁 目标平台: $BOARD"
           echo "📁 子平台: ${SUBTARGET:-无}"
           
-          # 确定内核版本
-          # 方法1：从 .config 中读取 CONFIG_LINUX_*（格式：CONFIG_LINUX_5_15=y）
+          # ---------- 确定内核版本 ----------
+          # 方式1：从 .config 中读取 CONFIG_LINUX_*（格式：CONFIG_LINUX_5_15=y）
           KERNEL_VERSION=$(grep '^CONFIG_LINUX_[0-9]' .config | head -n 1 | sed 's/CONFIG_LINUX_//' | sed 's/=y//' | sed 's/_/./g')
           
           if [ -z "$KERNEL_VERSION" ]; then
-            # 方法2：从 include/kernel-version.mk 读取
+            # 方式2：从 include/kernel-version.mk 读取
             if [ -f "include/kernel-version.mk" ]; then
               KERNEL_VERSION=$(grep '^LINUX_VERSION-' include/kernel-version.mk | head -n 1 | cut -d= -f2 | tr -d ' ' | cut -d. -f1-2)
               echo "ℹ️  从 kernel-version.mk 读取内核版本: $KERNEL_VERSION"
@@ -658,7 +658,7 @@ jobs:
             fi
           fi
           
-          # 构造内核配置目录
+          # ---------- 构造内核配置目录 ----------
           if [ -n "$SUBTARGET" ] && [ "$SUBTARGET" != "generic" ]; then
             KERNEL_CONFIG_DIR="target/linux/$BOARD/$SUBTARGET"
           else
@@ -668,14 +668,14 @@ jobs:
           echo "📁 配置目录: $KERNEL_CONFIG_DIR"
           echo "📁 内核版本: ${KERNEL_VERSION:-未知}"
           
-          # 定位内核配置文件
+          # ---------- 定位内核配置文件 ----------
           if [ -n "$KERNEL_VERSION" ]; then
             KERNEL_CONFIG_FILE="$KERNEL_CONFIG_DIR/config-$KERNEL_VERSION"
           else
             KERNEL_CONFIG_FILE=""
           fi
           
-          # 如果文件不存在，尝试通配符查找
+          # 若文件不存在，尝试通配符查找
           if [ ! -f "$KERNEL_CONFIG_FILE" ]; then
             echo "⚠️  未找到 $KERNEL_CONFIG_FILE，尝试查找..."
             KERNEL_CONFIG_FILE=$(find "$KERNEL_CONFIG_DIR" -maxdepth 1 -name "config-*" 2>/dev/null | head -n 1)
@@ -689,13 +689,14 @@ jobs:
           
           echo "📁 找到内核配置文件: $KERNEL_CONFIG_FILE"
           
-          # 定义需要添加的内核配置选项
+          # ---------- 添加所需的内核配置选项 ----------
+          # RNDIS 和 USB 串口支持（RNDIS 上网 + AT 指令端口）
           CONFIG_OPTS=(
-            "CONFIG_USB_SERIAL_OPTION=y"
-            "CONFIG_USB_SERIAL_WWAN=y"
-            "CONFIG_USB_NET_RNDIS_HOST=y"
-            "CONFIG_USB_NET_CDCETHER=y"
-            "CONFIG_USB_NET_QMI_WWAN=y"
+            "CONFIG_USB_SERIAL_OPTION=y"      # 用于 AT/DIAG/Modem 端口
+            "CONFIG_USB_SERIAL_WWAN=y"        # WWAN 串口支持
+            "CONFIG_USB_NET_RNDIS_HOST=y"     # RNDIS 网卡（数据上网）
+            "CONFIG_USB_NET_CDCETHER=y"       # RNDIS 依赖
+            "CONFIG_USB_NET_QMI_WWAN=y"       # QMI 模式（备选）
           )
           
           for opt in "${CONFIG_OPTS[@]}"; do
@@ -709,10 +710,10 @@ jobs:
           
           echo "================================================================"
           echo "✅ 内核配置选项添加完成"
-          echo "================================================================"       
+          echo "================================================================"     
 
       # ==========================================================================
-      # 第十一点五步：添加 USB 设备 VID/PID 驱动支持（可扩展）
+      # 第十一点五步：添加 USB 设备 VID/PID 驱动支持（可扩展，无条件执行）
       # ==========================================================================
       - name: 🧩 添加 USB 设备驱动支持
         run: |
@@ -721,15 +722,18 @@ jobs:
           echo "================================================================"
           cd ${{ env.REPO_DIR }}
           
-          # ★★★ 在此定义需要添加的 USB 设备 ID（格式 "VID:PID"）★★★
-          # 后续新增设备只需在下面数组中增加一行
+          # ★★★ USB 设备定义列表（扩展方便）★★★
+          # 格式说明：
+          #   - 普通设备： "VID:PID"
+          #   - 需要过滤接口的设备： "VID:PID:RSVD(接口列表)"
+          # 域格 ASR 模块需要过滤 interface 0 和 1，以让出给 RNDIS 驱动
           DEVICES=(
-            "0x1286:0x4E3C"     # 域格ASR模块
-            # "0x1234:0x5678"   # 示例：后续新设备
-            # "0xabcd:0xef01"   # 示例：后续新设备
+            "0x1286:0x4E3C:RSVD(0)|RSVD(1)"     # 域格ASR模块（必须过滤0,1）
+            # "0x1234:0x5678"                   # 示例：后续新设备（无过滤）
+            # "0xabcd:0xef01:RSVD(2)|RSVD(3)"   # 示例：后续新设备（需过滤）
           )
           
-          # 解压内核源码（此时 .config 已完整，可以正确准备）
+          # 解压内核源码（确保 option.c 可编辑）
           make target/linux/prepare V=s
           
           # 定位 option.c 文件
@@ -741,15 +745,31 @@ jobs:
           echo "✅ 找到 option.c: $OPTION_C"
           
           # 遍历设备列表，逐个添加
-          for device in "${DEVICES[@]}"; do
-            VID=$(echo "$device" | cut -d':' -f1)
-            PID=$(echo "$device" | cut -d':' -f2)
+          for entry in "${DEVICES[@]}"; do
+            # 解析 VID、PID 和可选的 RSVD 标志
+            VID=$(echo "$entry" | cut -d':' -f1)
+            PID=$(echo "$entry" | cut -d':' -f2)
+            RSVD=$(echo "$entry" | cut -d':' -f3-)
+            
+            # 检查是否已存在该 VID:PID
             if grep -q "$VID.*$PID" "$OPTION_C"; then
-              echo "ℹ️  设备 $device 已存在，跳过。"
-            else
-              sed -i "/static const struct usb_device_id option_ids\[\] = {/a { USB_DEVICE($VID, $PID) }," "$OPTION_C"
-              echo "✅ 已添加设备: $device"
+              echo "ℹ️  设备 $VID:$PID 已存在，跳过。"
+              continue
             fi
+            
+            # 构造要插入的条目
+            if [ -n "$RSVD" ]; then
+              # 有 RSVD 标志，添加带 .driver_info 的条目
+              INSERT="{ USB_DEVICE($VID, $PID), .driver_info = $RSVD },"
+              echo "  ✅ 添加设备 $VID:$PID 并过滤 $RSVD"
+            else
+              # 无过滤，仅添加 USB_DEVICE
+              INSERT="{ USB_DEVICE($VID, $PID) },"
+              echo "  ✅ 添加设备 $VID:$PID"
+            fi
+            
+            # 插入到 option_ids[] 数组中（在起始大括号后插入）
+            sed -i "/static const struct usb_device_id option_ids\[\] = {/a $INSERT" "$OPTION_C"
           done
           
           echo "================================================================"
@@ -802,92 +822,94 @@ jobs:
           echo "================================================================"
 
       # ==========================================================================
-      # 第十一点七步：添加域格模块拨号和热插拔脚本（条件执行）
+      # 第十一点七步：添加域格模块 RNDIS 拨号辅助脚本（条件执行）
       # ==========================================================================
-      - name: 📶 第十一点七步：添加域格模块拨号和热插拔脚本
+      - name: 📶 第十一点七步：添加域格模块辅助脚本
         if: github.event.inputs.enable_yuge_4g == 'true'
         run: |
           echo "================================================================"
-          echo "📶 开始添加域格模块拨号和热插拔脚本..."
+          echo "📶 开始添加域格模块辅助脚本..."
           echo "================================================================"
           cd ${{ env.REPO_DIR }}
           
-          # 创建拨号脚本目录
+          # ---------- 创建 RNDIS 拨号触发脚本（通过 AT 端口）----------
+          # 当模块插入后，若自动拨号未生效，可通过此脚本手动触发 RNDIS 拨号
+          # 也可用于查询信号、SIM 卡状态等
           FILES_DIR="files/etc/ppp/peers"
           mkdir -p "$FILES_DIR"
           
-          # 检查是否已存在同名脚本，避免覆盖
-          if [ -f "$FILES_DIR/yuge-lte" ]; then
-            echo "⚠️  yuge-lte 已存在，跳过创建"
+          if [ -f "$FILES_DIR/yuge-rndis" ]; then
+            echo "⚠️  yuge-rndis 已存在，跳过创建"
           else
-            cat > "$FILES_DIR/yuge-lte" << 'EOF'
-            # 域格 JC3 模块 ppp 拨号配置
-            /dev/ttyUSB2 115200 crtscts
-            modem
-            debug
-            nodetach
-            usepeerdns
-            noipdefault
-            defaultroute
-            user "card"
-            password "card"
-            connect '/usr/sbin/chat -s -v -f /etc/ppp/peers/yuge-chat'
-            EOF
-            echo "  ✅ 拨号脚本已创建: $FILES_DIR/yuge-lte"
+            printf '%s\n' \
+              '#!/bin/sh' \
+              '# 域格 JC3 模块 RNDIS 拨号辅助脚本' \
+              '# 用法：/etc/ppp/peers/yuge-rndis start|stop|status' \
+              '' \
+              'TTY="/dev/ttyUSB1"   # AT 指令端口' \
+              '' \
+              'send_at() {' \
+              '    echo -e "$1\r" > "$TTY"' \
+              '    sleep 1' \
+              '    cat "$TTY"' \
+              '}' \
+              '' \
+              'case "$1" in' \
+              '  start)' \
+              '    echo "发起 RNDIS 拨号..."' \
+              '    send_at "AT+RNDISCALL=1"' \
+              '    ;;' \
+              '  stop)' \
+              '    echo "断开 RNDIS 拨号..."' \
+              '    send_at "AT+RNDISCALL=0"' \
+              '    ;;' \
+              '  status)' \
+              '    echo "查询 RNDIS 连接状态..."' \
+              '    send_at "AT+RNDISCALL?"' \
+              '    ;;' \
+              '  *)' \
+              '    echo "用法: $0 {start|stop|status}"' \
+              '    exit 1' \
+              'esac' \
+              > "$FILES_DIR/yuge-rndis"
+            chmod +x "$FILES_DIR/yuge-rndis"
+            echo "  ✅ RNDIS 辅助脚本已创建: $FILES_DIR/yuge-rndis"
           fi
           
-          if [ -f "$FILES_DIR/yuge-chat" ]; then
-            echo "⚠️  yuge-chat 已存在，跳过创建"
-          else
-            cat > "$FILES_DIR/yuge-chat" << 'EOF'
-            # 域格 JC3 模块 chat 脚本
-            TIMEOUT 15
-            ABORT "DELAYED"
-            ABORT "BUSY"
-            ABORT "ERROR"
-            ABORT "NO DIALTONE"
-            ABORT "NO CARRIER"
-            "" AT
-            OK ATE0
-            OK ATD*99***1#
-            CONNECT
-            EOF
-            echo "  ✅ Chat 脚本已创建: $FILES_DIR/yuge-chat"
-          fi
-          
-          # 创建热插拔脚本目录
+          # ---------- 创建热插拔脚本（USB 插入自动拨号）----------
+          # 当模块插入时，自动尝试发起 RNDIS 拨号
           HOTPLUG_DIR="files/etc/hotplug.d/usb"
           mkdir -p "$HOTPLUG_DIR"
           
           if [ -f "$HOTPLUG_DIR/10-yuge-4g" ]; then
             echo "⚠️  10-yuge-4g 已存在，跳过创建"
           else
-            cat > "$HOTPLUG_DIR/10-yuge-4g" << 'EOF'
-            #!/bin/sh
-            # 域格 JC3 模块热插拔脚本
-            # 当 USB 设备插入时自动拨号
-            
-            if [ "$ACTION" = "add" ] && [ "$PRODUCT" = "1286/4e3c/0" ]; then
-                logger "域格 JC3 模块已插入，启动拨号..."
-                sleep 3
-                if [ -c /dev/ttyUSB2 ]; then
-                    pppd call yuge-lte &
-                else
-                    logger "域格模块 ttyUSB 设备未就绪"
-                fi
-            fi
-            
-            if [ "$ACTION" = "remove" ] && [ "$PRODUCT" = "1286/4e3c/0" ]; then
-                logger "域格 JC3 模块已拔出，停止拨号..."
-                killall pppd
-            fi
-            EOF
+            printf '%s\n' \
+              '#!/bin/sh' \
+              '# 域格 JC3 模块热插拔脚本' \
+              '# 当 USB 设备插入时自动触发 RNDIS 拨号' \
+              '' \
+              'if [ "$ACTION" = "add" ] && [ "$PRODUCT" = "1286/4e3c/0" ]; then' \
+              '    logger "域格 JC3 模块已插入，尝试 RNDIS 拨号..."' \
+              '    sleep 3' \
+              '    # 如果 RNDIS 网卡未自动获取 IP，可尝试触发拨号' \
+              '    if [ -c /dev/ttyUSB1 ]; then' \
+              '        /etc/ppp/peers/yuge-rndis start' \
+              '    else' \
+              '        logger "AT 端口 /dev/ttyUSB1 未就绪"' \
+              '    fi' \
+              'fi' \
+              '' \
+              'if [ "$ACTION" = "remove" ] && [ "$PRODUCT" = "1286/4e3c/0" ]; then' \
+              '    logger "域格 JC3 模块已拔出"' \
+              'fi' \
+              > "$HOTPLUG_DIR/10-yuge-4g"
             chmod +x "$HOTPLUG_DIR/10-yuge-4g"
             echo "  ✅ 热插拔脚本已创建: $HOTPLUG_DIR/10-yuge-4g"
           fi
           
           echo "================================================================"
-          echo "✅ 域格模块拨号和热插拔脚本添加完成"
+          echo "✅ 域格模块辅助脚本添加完成"
           echo "================================================================"
 
       - name: 🧩 第十二步：替换自定义 dts/dtsi 文件（按设备精确匹配）
