@@ -578,7 +578,7 @@ jobs:
           fi
 
       # ==========================================================================
-      # 第十一步：生成完整编译配置
+      # 第十一步：生成完整编译配置（保护用户板型）
       # ==========================================================================
       - name: ⚙️ 第十一步：生成完整编译配置（保护用户板型）
         run: |
@@ -599,6 +599,15 @@ jobs:
           # 生成完整默认配置
           echo "🔄 运行 make defconfig 生成完整配置..."
           make defconfig
+          # ★★★ 清理格式错误的配置行 ★★★
+          echo "🔧 清理 .config 中的无效行..."
+          sed -i '/^yPACKAGE_/d' .config
+          sed -i '/^yCONFIG_/d' .config
+          sed -i '/^ySTRACE_/d' .config
+          # 运行 oldconfig 自动修正依赖
+          echo "🔄 运行 make oldconfig 自动修正无效选项..."
+          export TERM=linux
+          make oldconfig CONFIG_=y
           # 显示 defconfig 后当前值（恢复前）
           echo "📌 defconfig 后当前目标板: $(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2 || echo '未设置')"
           echo "📌 defconfig 后当前平台: $(grep '^CONFIG_TARGET_BOARD=' .config | cut -d'"' -f2 || echo '未设置')"
@@ -971,8 +980,17 @@ jobs:
             echo "❌ 缺少 .config 文件！"
             exit 1
           fi
+          # ★★★ 再次清理并确保 .config 有效 ★★★
+          echo "🔧 预检查 .config 有效性..."
+          sed -i '/^yPACKAGE_/d' .config
+          sed -i '/^yCONFIG_/d' .config
+          sed -i '/^ySTRACE_/d' .config
+          export TERM=linux
+          make oldconfig CONFIG_=y
+          
           CPU_CORES=$(nproc)
           echo "🚀 使用 $CPU_CORES 个线程并行下载..."
+          export TERM=linux
           if make download -j$CPU_CORES; then
             echo "✅ 源码下载成功"
           else
