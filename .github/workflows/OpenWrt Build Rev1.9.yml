@@ -16,7 +16,7 @@
 #   ✅ 自动集成自定义 IPK 包（custom-ipk/ 目录，仅 opkg 版本）
 #   ✅ 自定义 IPK 失败时可选择跳过或暂停 SSH 修复
 # ============================================================================
-name: OpenWrt 多源码仓库编译系统（Rev1.8）
+name: OpenWrt 多源码仓库编译系统（Rev1.9）
 
 # ============================================================================
 # 触发方式：手动触发（Run workflow）
@@ -85,6 +85,13 @@ on:
         type: boolean
         required: false
         default: false
+
+      # ========== 域格4G 模组添加选项 ==========
+      enable_yuge_4g:
+        description: '📶 是否启用域格(Yuge) JC3 4G模块支持（自动添加驱动、过滤接口及拨号脚本）'
+        type: boolean
+        required: false
+        default: false        
 
       # ========== 是否运行 make defconfig ==========
       #enable_defconfig:
@@ -704,6 +711,173 @@ jobs:
           echo "✅ binutils 哈希修复完成"
           echo "================================================================"
 
+          
+      # ==========================================================================
+      # 第十一点七步：域格(Yuge) JC3 4G模块专用支持
+      # ==========================================================================
+      - name: 📶 第十一点七步：域格(Yuge) JC3 4G模块专用支持
+        if: github.event.inputs.enable_yuge_4g == 'true'
+        run: |
+          echo "================================================================"
+          echo "📶 开始配置域格(Yuge) JC3 4G模块支持..."
+          echo "================================================================"
+          cd ${{ env.REPO_DIR }}
+          
+          # ============================================================
+          # 1. 确保内核配置包含必要的驱动
+          # ============================================================
+          echo "🔧 1. 配置内核驱动选项..."
+          
+          CONFIG_OPTS=(
+            "CONFIG_USB_SERIAL_OPTION=y"
+            "CONFIG_USB_SERIAL_WWAN=y"
+            "CONFIG_USB_NET_RNDIS_HOST=y"
+            "CONFIG_USB_NET_CDCETHER=y"
+            "CONFIG_USB_NET_CDC_NCM=y"
+            "CONFIG_USB_NET_QMI_WWAN=y"
+          )
+          
+          for opt in "${CONFIG_OPTS[@]}"; do
+            if ! grep -q "^$opt" .config; then
+              echo "$opt" >> .config
+              echo "  ✅ 添加: $opt"
+            else
+              echo "  ℹ️  已存在: $opt"
+            fi
+          done
+          
+          # ============================================================
+          # 2. 修改 option.c 添加 VID/PID 和接口过滤
+          # ============================================================
+          echo "🔧 2. 添加模块 VID/PID 到 option.c..."
+          
+          # 确保内核源码已准备
+          make target/linux/prepare V=s
+          
+          OPTION_C=$(find build_dir -name "option.c" | grep -v ".tmp" | head -n 1)
+          if [ -z "$OPTION_C" ]; then
+            echo "❌ 未找到 option.c 文件！"
+            exit 1
+          fi
+          echo "📁 找到 option.c: $OPTION_C"
+          
+          # 检查是否已添加
+          if grep -q "0x1286.*0x4E3C" "$OPTION_C"; then
+            echo "ℹ️  域格模块 VID/PID 已存在，跳过修改。"
+          else
+            # 添加宏定义（在文件开头附近）
+            if ! grep -q "#define YUGA_VENDOR_ID" "$OPTION_C"; then
+              sed -i '/#define.*_VENDOR_ID/a #define YUGA_VENDOR_ID 0x1286\n#define YUGA_PRODUCT_ID_JC3 0x4E3C' "$OPTION_C"
+              echo "  ✅ 已添加宏定义"
+            fi
+            
+            # 在 option_ids[] 数组中添加条目（带 RSVD 过滤 interface 0,1）
+            sed -i "/static const struct usb_device_id option_ids\[\] = {/a { USB_DEVICE(YUGA_VENDOR_ID, YUGA_PRODUCT_ID_JC3), .driver_info = RSVD(0) | RSVD(1) }," "$OPTION_C"
+            echo "  ✅ 已添加 VID=0x1286 PID=0x4E3C，并跳过 interface 0,1"
+          fi
+          
+          # ============================================================
+          # 3. 添加拨号脚本（放到 /etc/ppp/peers/）
+          # ============================================================
+          echo "🔧 3. 添加域格模块拨号脚本..."
+          
+          FILES_DIR="files/etc/ppp/peers"
+          mkdir -p "$FILES_DIR"
+          
+          cat > "$FILES_DIR/yuge-lte" << 'EOF'
+          # 域格 JC3 模块 ppp 拨号配置
+          # 使用方式: pppd call yuge-lte
+          
+          /dev/ttyUSB2 115200 crtscts
+          modem
+          debug
+          nodetach
+          usepeerdns
+          noipdefault
+          defaultroute
+          user "card"
+          password "card"
+          connect '/usr/sbin/chat -s -v -f /etc/ppp/peers/yuge-chat'
+          EOF
+          
+          cat > "$FILES_DIR/yuge-chat" << 'EOF'
+          # 域格 JC3 模块 chat 脚本
+          TIMEOUT 15
+          ABORT "DELAYED"
+          ABORT "BUSY"
+          ABORT "ERROR"
+          ABORT "NO DIALTONE"
+          ABORT "NO CARRIER"
+          "" AT
+          OK ATE0
+          OK ATD*99***1#
+          CONNECT
+          EOF
+          
+          echo "  ✅ 拨号脚本已创建: $FILES_DIR/yuge-lte"
+          echo "  ✅ Chat 脚本已创建: $FILES_DIR/yuge-chat"
+          
+          # ============================================================
+          # 4. 添加热插拔脚本（自动拨号）
+          # ============================================================
+          echo "🔧 4. 添加热插拔脚本..."
+          
+          HOTPLUG_DIR="files/etc/hotplug.d/usb"
+          mkdir -p "$HOTPLUG_DIR"
+          
+          cat > "$HOTPLUG_DIR/10-yuge-4g" << 'EOF'
+          #!/bin/sh
+          # 域格 JC3 模块热插拔脚本
+          # 当 USB 设备插入时自动拨号
+          
+          if [ "$ACTION" = "add" ] && [ "$PRODUCT" = "1286/4e3c/0" ]; then
+              logger "域格 JC3 模块已插入，启动拨号..."
+              sleep 3
+              if [ -c /dev/ttyUSB2 ]; then
+                  pppd call yuge-lte &
+              else
+                  logger "域格模块 ttyUSB 设备未就绪"
+              fi
+          fi
+          
+          if [ "$ACTION" = "remove" ] && [ "$PRODUCT" = "1286/4e3c/0" ]; then
+              logger "域格 JC3 模块已拔出，停止拨号..."
+              killall pppd
+          fi
+          EOF
+          
+          chmod +x "$HOTPLUG_DIR/10-yuge-4g"
+          echo "  ✅ 热插拔脚本已创建: $HOTPLUG_DIR/10-yuge-4g"
+          
+          # ============================================================
+          # 5. 添加 QMI 协议支持（如果 feeds 中有）
+          # ============================================================
+          echo "🔧 5. 添加 QMI 协议支持..."
+          
+          if find feeds -name "luci-proto-qmi" -type d 2>/dev/null | grep -q .; then
+            echo "CONFIG_PACKAGE_luci-proto-qmi=y" >> .config
+            echo "CONFIG_PACKAGE_uqmi=y" >> .config
+            echo "  ✅ 已启用 QMI 协议支持"
+          else
+            echo "  ℹ️  luci-proto-qmi 未在 feeds 中，跳过"
+          fi
+          
+          # ============================================================
+          # 6. 最终刷新配置
+          # ============================================================
+          echo "🔄 刷新编译配置..."
+          make oldconfig CONFIG_=y
+          make defconfig
+          
+          echo "================================================================"
+          echo "✅ 域格 JC3 4G 模块支持配置完成！"
+          echo "   📌 已添加 VID/PID: 0x1286:0x4E3C"
+          echo "   📌 已过滤 interface 0,1 (RNDIS)"
+          echo "   📌 已生成拨号脚本: /etc/ppp/peers/yuge-lte"
+          echo "   📌 已生成热插拔脚本: /etc/hotplug.d/usb/10-yuge-4g"
+          echo "================================================================"
+
+          
       - name: 🧩 第十二步：替换自定义 dts/dtsi 文件（按设备精确匹配）
         run: |
           echo "================================================================"
