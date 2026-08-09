@@ -23,4 +23,4 @@
 # sed -i "s/^\(set system.@system\[-1\].hostname=\).*\$/\1'ImmortalWrt'/" package/base-files/files/bin/config_generate
 
 # 2. 修改型号名为: E103-W20
-sed -i 's/^\(DISTRIB_MODEL="\).*\("\)/\1E103-W20\2/' package/base-files/files/etc/openwrt_release
+# sed -i 's/^\(DISTRIB_MODEL="\).*\("\)/\1E103-W20\2/' package/base-files/files/etc/openwrt_release
