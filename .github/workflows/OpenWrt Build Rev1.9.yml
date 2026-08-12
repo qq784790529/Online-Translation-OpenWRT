@@ -154,9 +154,13 @@ jobs:
           INPUT="${{ github.event.inputs.source_branch }}"
           CUSTOM_URL="${{ github.event.inputs.custom_url }}"
           CUSTOM_BRANCH="${{ github.event.inputs.custom_branch }}"
+      
+
+          # REPO_NAME=$(echo "$INPUT" | cut -d'-' -f1 | xargs)
+          # BRANCH_NAME=$(echo "$INPUT" | cut -d'-' -f2- | xargs)
           
-          REPO_NAME=$(echo "$INPUT" | cut -d'-' -f1 | xargs)
-          BRANCH_NAME=$(echo "$INPUT" | cut -d'-' -f2- | xargs)
+          REPO_NAME=$(echo "$INPUT" | awk -F ' - ' '{print $1}' | xargs)
+          BRANCH_NAME=$(echo "$INPUT" | awk -F ' - ' '{print $2}' | xargs)
           
           echo "📦 选择的选项: $INPUT"
           echo "📦 仓库名: $REPO_NAME"
