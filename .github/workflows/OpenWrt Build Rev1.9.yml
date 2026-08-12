@@ -55,7 +55,7 @@ on:
           - 'ImmortalWrt/immortalwrt - openwrt-18.06-k5.4'
 
           # ========== zero2 第三方仓库 ==========
-          - 'ImmortalWRT-OrangePi-Zero2 - master'
+          - 'chunkburst/ImmortalWRT-OrangePi-Zero2 - master'
           
           # ========== 完全自定义 ==========
           - 'custom - custom'
@@ -188,7 +188,7 @@ jobs:
               echo "✅ 配置文件: $CONFIG_FILE"
               ;;
             "DIY1")
-              REPO_URL="https://github.com/qq784790529/ImmortalWRT-OrangePi-Zero2"
+              REPO_URL="https://github.com/chunkburst/ImmortalWRT-OrangePi-Zero2"
               REPO_DIR="diy1"
               CONFIG_FILE="configs/diy1.config"
               echo "✅ 选择的仓库: DIY1"
