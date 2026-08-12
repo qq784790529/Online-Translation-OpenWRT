@@ -191,29 +191,11 @@ jobs:
               echo "✅ 选择的分支: $BRANCH_NAME"
               echo "✅ 配置文件: $CONFIG_FILE"
               ;;
-            "DIY1")
+            "chunkburst/ImmortalWRT-OrangePi-Zero2")
               REPO_URL="https://github.com/chunkburst/ImmortalWRT-OrangePi-Zero2"
-              REPO_DIR="diy1"
-              CONFIG_FILE="configs/diy1.config"
-              echo "✅ 选择的仓库: DIY1"
-              echo "✅ 仓库地址: $REPO_URL"
-              echo "✅ 选择的分支: $BRANCH_NAME"
-              echo "✅ 配置文件: $CONFIG_FILE"
-              ;;
-            "DIY2")
-              REPO_URL="https://github.com/"
-              REPO_DIR="diy2"
-              CONFIG_FILE="configs/diy2.config"
-              echo "✅ 选择的仓库: DIY2"
-              echo "✅ 仓库地址: $REPO_URL"
-              echo "✅ 选择的分支: $BRANCH_NAME"
-              echo "✅ 配置文件: $CONFIG_FILE"
-              ;;
-            "DIY3")
-              REPO_URL="https://github.com/"
-              REPO_DIR="diy3"
-              CONFIG_FILE="configs/diy3.config"
-              echo "✅ 选择的仓库: DIY3"
+              REPO_DIR="zero2"
+              CONFIG_FILE="configs/zero2.config"
+              echo "✅ 选择的仓库: chunkburst/ImmortalWRT-OrangePi-Zero2"
               echo "✅ 仓库地址: $REPO_URL"
               echo "✅ 选择的分支: $BRANCH_NAME"
               echo "✅ 配置文件: $CONFIG_FILE"
