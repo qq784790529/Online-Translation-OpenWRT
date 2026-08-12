@@ -1210,6 +1210,12 @@ jobs:
             ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
             ${{ env.REPO_DIR }}/bin/targets/*/*/*-rootfs.bin
             ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img.gz
+            bin/targets/*/*/*.bin
+            bin/targets/*/*/*.img
+            bin/targets/*/*/*.img.gz
           retention-days: 7
         continue-on-error: true
 
