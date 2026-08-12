@@ -55,7 +55,7 @@ on:
           - 'ImmortalWrt/immortalwrt - openwrt-18.06-k5.4'
 
           # ========== zero2 第三方仓库 ==========
-          - 'chunkburst/ImmortalWRT-OrangePi-Zero2 - master'
+          - 'ImmortalWRT-OrangePi-Zero2 - master'
           
           # ========== 完全自定义 ==========
           - 'custom - custom'
