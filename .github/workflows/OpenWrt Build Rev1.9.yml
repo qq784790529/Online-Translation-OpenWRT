@@ -719,7 +719,6 @@ jobs:
           # 域格 ASR 模块需要过滤 interface 0 和 1，以让出给 RNDIS 驱动
           DEVICES=(
             "0x1286:0x4E3C:RSVD(0)|RSVD(1)"     # 域格ASR模块（必须过滤0,1）
-            "0x0b95:0x:1790"                    # AX88179A
             # "0x1234:0x5678"                   # 示例：后续新设备（无过滤）
             # "0xabcd:0xef01:RSVD(2)|RSVD(3)"   # 示例：后续新设备（需过滤）
           )
