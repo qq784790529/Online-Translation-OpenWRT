@@ -19,5 +19,8 @@ echo 'src-git mrhaav https://github.com/mrhaav/openwrt-packages' >>feeds.conf.de
 echo 'src-git kenzo https://github.com/kenzok8/openwrt-packages' >>feeds.conf.default
 echo 'src-git small https://github.com/kenzok8/small' >>feeds.conf.default
 
-# luci-app-atinout 用
+# luci-app-atinout 插件
 echo 'src-git 4ice https://github.com/4IceG/luci-app-atinout-mod.git' >>feeds.conf.default
+
+# luci-app-passwall 依赖
+echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git' >>feeds.conf.default
