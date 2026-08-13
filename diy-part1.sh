@@ -18,4 +18,6 @@ echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.defau
 echo 'src-git mrhaav https://github.com/mrhaav/openwrt-packages' >>feeds.conf.default
 echo 'src-git kenzo https://github.com/kenzok8/openwrt-packages' >>feeds.conf.default
 echo 'src-git small https://github.com/kenzok8/small' >>feeds.conf.default
+
+# luci-app-atinout 用
 echo 'src-git 4ice https://github.com/4IceG/luci-app-atinout-mod.git' >>feeds.conf.default
