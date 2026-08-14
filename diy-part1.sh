@@ -24,3 +24,11 @@ echo 'src-git 4ice https://github.com/4IceG/luci-app-atinout-mod.git' >>feeds.co
 
 # luci-app-passwall 依赖
 echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git' >>feeds.conf.default
+
+# 4G/5G模组
+# modemfeed
+echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >>feeds.conf.default
+# QModem
+echo 'src-git qmodem https://github.com/FUjr/QModem.git' >>feeds.conf.default
+# luci-app-vohive
+echo 'src-git vohive https://github.com/voorz/luci-app-vohive.git' >>feeds.conf.default
