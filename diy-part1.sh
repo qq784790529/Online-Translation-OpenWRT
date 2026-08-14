@@ -19,18 +19,19 @@ echo 'src-git mrhaav https://github.com/mrhaav/openwrt-packages' >>feeds.conf.de
 echo 'src-git kenzo https://github.com/kenzok8/openwrt-packages' >>feeds.conf.default
 echo 'src-git small https://github.com/kenzok8/small' >>feeds.conf.default
 
-# luci-app-atinout 插件
-echo 'src-git 4ice https://github.com/4IceG/luci-app-atinout-mod.git' >>feeds.conf.default
+# luci-app-atinout 插件 与 modemfeed 重复
+# echo 'src-git 4ice https://github.com/4IceG/luci-app-atinout-mod.git' >>feeds.conf.default
 
 # luci-app-passwall 依赖
 echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git' >>feeds.conf.default
+# 这两个容易404或者失败，没事就不用开
 # echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall.git' >>feeds.conf.default
 # echo 'src-git passwall2 https://github.com/xiaorouji/openwrt-passwall2.git' >>feeds.conf.default
 
 # 4G/5G模组
-# modemfeed
+# modemfeed 轻量化
 echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >>feeds.conf.default
-# QModem
-echo 'src-git qmodem https://github.com/FUjr/QModem.git' >>feeds.conf.default
-# luci-app-vohive
-echo 'src-git vohive https://github.com/voorz/luci-app-vohive.git' >>feeds.conf.default
+# QModem 一站式 和 modemfeed 轻量化 同时只能开启一个
+# echo 'src-git qmodem https://github.com/FUjr/QModem.git' >>feeds.conf.default
+# luci-app-vohive 驱动管理插件（可选）
+# echo 'src-git vohive https://github.com/voorz/luci-app-vohive.git' >>feeds.conf.default
