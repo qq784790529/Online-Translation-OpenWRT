@@ -24,6 +24,8 @@ echo 'src-git 4ice https://github.com/4IceG/luci-app-atinout-mod.git' >>feeds.co
 
 # luci-app-passwall 依赖
 echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git' >>feeds.conf.default
+# echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall.git' >>feeds.conf.default
+# echo 'src-git passwall2 https://github.com/xiaorouji/openwrt-passwall2.git' >>feeds.conf.default
 
 # 4G/5G模组
 # modemfeed
