@@ -65,9 +65,7 @@ on:
 
           # ========== zero2 第三方仓库 ==========
           - 'qq784790529/ImmortalWRT-OrangePi-Zero2 - master'
-          - 'qq784790529/ImmortalWRT-OrangePi-Zero2 - main'
-          - 'qq784790529/ImmortalWRT-OrangePi-Zero - master'
-          - 'qq784790529/ImmortalWRT-OrangePi-Zero - main'          
+          - 'qq784790529/ImmortalWRT-OrangePi-Zero2 - main'         
           
           # ========== 完全自定义 ==========
           - 'custom - custom'
@@ -207,15 +205,6 @@ jobs:
               REPO_URL="https://github.com/qq784790529/ImmortalWRT-OrangePi-Zero2"
               REPO_DIR="zero2"
               CONFIG_FILE="configs/zero2.config"
-              echo "✅ 选择的仓库: qq784790529/ImmortalWRT-OrangePi-Zero2"
-              echo "✅ 仓库地址: $REPO_URL"
-              echo "✅ 选择的分支: $BRANCH_NAME"
-              echo "✅ 配置文件: $CONFIG_FILE"
-              ;;
-            "qq784790529/ImmortalWRT-OrangePi-Zero")
-              REPO_URL="https://github.com/qq784790529/ImmortalWRT-OrangePi-Zero2"
-              REPO_DIR="zero"
-              CONFIG_FILE="configs/zero.config"
               echo "✅ 选择的仓库: qq784790529/ImmortalWRT-OrangePi-Zero2"
               echo "✅ 仓库地址: $REPO_URL"
               echo "✅ 选择的分支: $BRANCH_NAME"
@@ -1282,49 +1271,32 @@ jobs:
       # ==========================================================================
       # 第二十六步：上传刷机包文件
       # ==========================================================================
-      # - name: 📤 第二十六步：上传刷机包文件（仅刷机包）
-      #   if: env.UPLOAD_FIRMWARE == 'true'
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: openwrt-firmware
-      #     path: |
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-sysupgrade.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-factory.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-sysupgrade.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-factory.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-initramfs-kernel.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-rootfs.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img.gz
-      #       bin/targets/*/*/*.bin
-      #       bin/targets/*/*/*.img
-      #       bin/targets/*/*/*.img.gz
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-sysupgrade.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-factory.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img.gz
-      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.bin
-      #     retention-days: 7
-      #   continue-on-error: true
-
-      - name: 📤 第二十六步：上传刷机包文件（动态收集）
-        if: env.UPLOAD_FIRMWARE == 'true'
-        run: |
-          cd ${{ env.REPO_DIR }}
-          mkdir -p artifacts
-          find bin/targets -type f \( -name "*.bin" -o -name "*.img" -o -name "*.img.gz" \) -exec cp {} artifacts/ \;
-        continue-on-error: true
-
-      - name: 📤 上传 artifacts 目录
+      - name: 📤 第二十六步：上传刷机包文件（仅刷机包）
         if: env.UPLOAD_FIRMWARE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: openwrt-firmware
-          path: ${{ env.REPO_DIR }}/artifacts/
+          path: |
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-sysupgrade.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-factory.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-sysupgrade.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-factory.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*-initramfs-kernel.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*-rootfs.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img.gz
+            bin/targets/*/*/*.bin
+            bin/targets/*/*/*.img
+            bin/targets/*/*/*.img.gz
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*-sysupgrade.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*-factory.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img.gz
+            ${{ env.REPO_DIR }}/bin/targets/*/*/*.bin
           retention-days: 7
         continue-on-error: true
 
