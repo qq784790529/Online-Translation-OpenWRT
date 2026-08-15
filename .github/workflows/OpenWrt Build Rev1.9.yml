@@ -57,6 +57,8 @@ on:
           # ========== zero2 第三方仓库 ==========
           - 'qq784790529/ImmortalWRT-OrangePi-Zero2 - master'
           - 'qq784790529/ImmortalWRT-OrangePi-Zero2 - main'
+          - 'qq784790529/ImmortalWRT-OrangePi-Zero - master'
+          - 'qq784790529/ImmortalWRT-OrangePi-Zero - main'          
           
           # ========== 完全自定义 ==========
           - 'custom - custom'
@@ -201,6 +203,15 @@ jobs:
               echo "✅ 选择的分支: $BRANCH_NAME"
               echo "✅ 配置文件: $CONFIG_FILE"
               ;;
+            "qq784790529/ImmortalWRT-OrangePi-Zero")
+              REPO_URL="https://github.com/qq784790529/ImmortalWRT-OrangePi-Zero2"
+              REPO_DIR="zero"
+              CONFIG_FILE="configs/zero.config"
+              echo "✅ 选择的仓库: qq784790529/ImmortalWRT-OrangePi-Zero2"
+              echo "✅ 仓库地址: $REPO_URL"
+              echo "✅ 选择的分支: $BRANCH_NAME"
+              echo "✅ 配置文件: $CONFIG_FILE"
+              ;;              
             "custom")
               if [ -z "$CUSTOM_URL" ] || [ -z "$CUSTOM_BRANCH" ]; then
                 echo "❌ 错误：选择 custom 时必须填写仓库 URL 和分支！"
