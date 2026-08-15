@@ -1255,6 +1255,17 @@ jobs:
           name: debug
           path: ${{ env.REPO_DIR }}/debug.log
           retention-days: 7
+          
+      # ==========================================================================
+      # 第十七点七步：列出生成的固件文件
+      # ==========================================================================
+      - name: 📂 列出生成的固件文件
+        run: |
+          cd ${{ env.REPO_DIR }}
+          echo "========== 文件列表 =========="
+          find bin/targets -type f \( -name "*.bin" -o -name "*.img" -o -name "*.gz" \) | sort
+          echo "================================"
+        continue-on-error: true
 
       # ==========================================================================
       # 第十八步：上传 SSH 生成的 .config 文件
@@ -1271,26 +1282,49 @@ jobs:
       # ==========================================================================
       # 第十九步：上传刷机包文件
       # ==========================================================================
-      - name: 📤 第十九步：上传刷机包文件（仅刷机包）
+      # - name: 📤 第十九步：上传刷机包文件（仅刷机包）
+      #   if: env.UPLOAD_FIRMWARE == 'true'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: openwrt-firmware
+      #     path: |
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-sysupgrade.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-factory.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-sysupgrade.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-factory.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-initramfs-kernel.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-rootfs.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img.gz
+      #       bin/targets/*/*/*.bin
+      #       bin/targets/*/*/*.img
+      #       bin/targets/*/*/*.img.gz
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-sysupgrade.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-factory.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img.gz
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.bin
+      #     retention-days: 7
+      #   continue-on-error: true
+
+      - name: 📤 第十九步：上传刷机包文件（动态收集）
+        if: env.UPLOAD_FIRMWARE == 'true'
+        run: |
+          cd ${{ env.REPO_DIR }}
+          mkdir -p artifacts
+          find bin/targets -type f \( -name "*.bin" -o -name "*.img" -o -name "*.img.gz" \) -exec cp {} artifacts/ \;
+        continue-on-error: true
+
+      - name: 📤 上传 artifacts 目录
         if: env.UPLOAD_FIRMWARE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: openwrt-firmware
-          path: |
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-sysupgrade.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-factory.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-sysupgrade.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-factory.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-initramfs-kernel.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-rootfs.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img.gz
-            bin/targets/*/*/*.bin
-            bin/targets/*/*/*.img
-            bin/targets/*/*/*.img.gz
+          path: ${{ env.REPO_DIR }}/artifacts/
           retention-days: 7
         continue-on-error: true
 
@@ -1308,18 +1342,18 @@ jobs:
       # ==========================================================================
       # 第二十一步：发布到 Release（可选）
       # ==========================================================================
-      - name: 🚀 第二十一步：发布到 Release
-        if: env.UPLOAD_RELEASE == 'true' && github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-sysupgrade.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-factory.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-sysupgrade.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-factory.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-initramfs-kernel.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*-rootfs.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: 🚀 第二十一步：发布到 Release
+      #   if: env.UPLOAD_RELEASE == 'true' && github.event_name == 'release'
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     files: |
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-sysupgrade.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-squashfs-factory.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-sysupgrade.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-ext4-factory.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-initramfs-kernel.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*-rootfs.bin
+      #       ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
