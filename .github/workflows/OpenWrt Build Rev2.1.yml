@@ -1191,6 +1191,89 @@ jobs:
           echo "================================================================"
           echo "✅ OpenWrt 编译完成！"
           echo "================================================================"
+
+      # ==========================================================================
+      # 第二十一点五步：提取当前设备使用的 DTS/DTSI 源文件 2026-08-16日新增
+      # ==========================================================================
+      - name: 📄 第二十一点五步：提取 DTS/DTSI 源文件
+        if: success()
+        run: |
+          echo "================================================================"
+          echo "📄 正在提取当前设备使用的 DTS/DTSI 源文件..."
+          echo "================================================================"
+          cd ${{ env.REPO_DIR }}
+          
+          # 从 .config 中获取目标设备名
+          PROFILE=$(grep '^CONFIG_TARGET_PROFILE=' .config | cut -d'"' -f2 | sed 's/^DEVICE_//')
+          if [ -z "$PROFILE" ]; then
+            echo "⚠️ 无法从 .config 获取设备名，跳过"
+            exit 0
+          fi
+          echo "📌 当前设备: $PROFILE"
+          
+          # 确定 DTS 文件名（根据平台规则，这里以 ramips/mt7621 为例）
+          # 你可以根据实际平台扩展更多命名规则
+          DTS_NAME=""
+          BOARD=$(grep '^CONFIG_TARGET_BOARD=' .config | cut -d'"' -f2)
+          SUBTARGET=$(grep '^CONFIG_TARGET_SUBTARGET=' .config | cut -d'"' -f2)
+          if [ "$BOARD" = "ramips" ]; then
+            if [ "$SUBTARGET" = "mt7621" ]; then
+              DTS_NAME="mt7621_${PROFILE}.dts"
+            elif [ "$SUBTARGET" = "mt76x8" ]; then
+              DTS_NAME="mt7628an_${PROFILE}.dts"
+            fi
+          fi
+          # 如果上面没有匹配，尝试直接使用 ${PROFILE}.dts
+          if [ -z "$DTS_NAME" ]; then
+            DTS_NAME="${PROFILE}.dts"
+          fi
+          echo "📌 推测 DTS 文件名: $DTS_NAME"
+          
+          # 查找 build_dir 中的 dts 目录
+          DTS_DIR=$(find build_dir -path "*/linux-*/arch/*/boot/dts" -type d | head -1)
+          if [ -z "$DTS_DIR" ]; then
+            echo "⚠️ 未找到 dts 目录"
+            exit 0
+          fi
+          echo "📁 找到 dts 目录: $DTS_DIR"
+          
+          # 创建临时目录用于存放要打包的文件
+          mkdir -p device-tree
+          # 查找 DTS_NAME 文件
+          DTS_FILE=$(find "$DTS_DIR" -name "$DTS_NAME" | head -1)
+          if [ -z "$DTS_FILE" ]; then
+            echo "⚠️ 未找到 $DTS_NAME，尝试查找包含该设备名的所有 .dts 文件"
+            DTS_FILE=$(find "$DTS_DIR" -name "*${PROFILE}.dts" | head -1)
+          fi
+          
+          if [ -n "$DTS_FILE" ]; then
+            echo "✅ 找到 DTS 文件: $DTS_FILE"
+            # 复制 DTS 文件
+            cp "$DTS_FILE" device-tree/
+            # 解析 #include 指令，复制所有引用的 .dtsi 文件（相对路径）
+            # 这里使用 grep 提取 #include 后面的文件名，并尝试在 DTS_DIR 和 include 目录中查找
+            INCLUDES=$(grep -E '^[[:space:]]*#include' "$DTS_FILE" | sed -E 's/.*#include\s+["<]([^">]+)[">].*/\1/' | grep '\.dtsi$')
+            for inc in $INCLUDES; do
+              # 尝试在 DTS_DIR 及其子目录中查找
+              FOUND=$(find "$DTS_DIR" -name "$(basename "$inc")" | head -1)
+              if [ -z "$FOUND" ]; then
+                # 尝试在内核 include 目录中查找
+                FOUND=$(find "$DTS_DIR/../include" -name "$(basename "$inc")" | head -1)
+              fi
+              if [ -n "$FOUND" ]; then
+                cp "$FOUND" device-tree/
+                echo "  ✅ 包含: $FOUND"
+              else
+                echo "  ⚠️ 未找到包含文件: $inc"
+              fi
+            done
+            # 打包
+            tar -czf device-tree.tar.gz -C device-tree .
+            echo "✅ DTS/DTSI 文件已打包为 device-tree.tar.gz"
+          else
+            echo "⚠️ 未找到任何 DTS 文件"
+          fi
+          echo "================================================================"
           
       # ==========================================================================
       # 第二十二步：提取错误日志（仅当编译失败时）
@@ -1244,18 +1327,37 @@ jobs:
           name: debug
           path: ${{ env.REPO_DIR }}/debug.log
           retention-days: 7
+
+      # ==========================================================================
+      # 第二十三步扩展：上传 DTS/DTSI 源文件（可选）
+      # ==========================================================================
+      - name: 📤 第二十三步扩展：上传 DTS/DTSI 源文件
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-tree-sources
+          path: ${{ env.REPO_DIR }}/device-tree.tar.gz
+          retention-days: 7
           
       # ==========================================================================
-      # 第二十四步：列出生成的固件文件
+      # 第二十四步：列出生成的固件文件并设置标志
       # ==========================================================================
       - name: 📂 第二十四步：列出生成的固件文件
         run: |
           cd ${{ env.REPO_DIR }}
           echo "========== 文件列表 =========="
-          find bin/targets -type f \( -name "*.bin" -o -name "*.img" -o -name "*.gz" \) | sort
+          # 查找所有可能的固件文件（bin, img, gz）
+          find bin/targets -type f \( -name "*.bin" -o -name "*.img" -o -name "*.gz" \) | sort || true
           echo "================================"
+          # 检查是否存在任何固件文件，设置环境变量
+          if find bin/targets -type f \( -name "*.bin" -o -name "*.img" -o -name "*.gz" \) | grep -q .; then
+            echo "HAS_FIRMWARE=true" >> $GITHUB_ENV
+          else
+            echo "HAS_FIRMWARE=false" >> $GITHUB_ENV
+          fi
         continue-on-error: true
 
+        
       # ==========================================================================
       # 第二十五步：上传 SSH 生成的 .config 文件
       # ==========================================================================
@@ -1269,10 +1371,10 @@ jobs:
         continue-on-error: true
 
       # ==========================================================================
-      # 第二十六步：上传刷机包文件
+      # 第二十六步：上传刷机包文件（仅当存在固件时）
       # ==========================================================================
-      - name: 📤 第二十六步：上传刷机包文件（仅刷机包）
-        if: env.UPLOAD_FIRMWARE == 'true'
+      - name: 📤 第二十六步：上传刷机包文件
+        if: env.HAS_FIRMWARE == 'true' && env.UPLOAD_FIRMWARE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: openwrt-firmware
@@ -1286,30 +1388,24 @@ jobs:
             ${{ env.REPO_DIR }}/bin/targets/*/*/*-rootfs.bin
             ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
             ${{ env.REPO_DIR }}/bin/targets/*/*/*.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
             ${{ env.REPO_DIR }}/bin/targets/*/*/*.img.gz
-            bin/targets/*/*/*.bin
-            bin/targets/*/*/*.img
-            bin/targets/*/*/*.img.gz
             ${{ env.REPO_DIR }}/bin/targets/*/*/*-sysupgrade.bin
             ${{ env.REPO_DIR }}/bin/targets/*/*/*-factory.bin
             ${{ env.REPO_DIR }}/bin/targets/*/*/*-kernel.bin
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*.img.gz
-            ${{ env.REPO_DIR }}/bin/targets/*/*/*.bin
           retention-days: 7
         continue-on-error: true
 
-      # # ==========================================================================
-      # # 第二十七步：上传 bin 目录（可选）
-      # # ==========================================================================
-      # - name: 📤 第二十七步：上传 bin 目录
-      #   if: env.UPLOAD_BIN_DIR == 'true'
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: openwrt-bin
-      #     path: ${{ env.REPO_DIR }}/bin
-      #     retention-days: 7
+      # ==========================================================================
+      # 第二十七步：上传 bin 目录（可选）
+      # ==========================================================================
+      - name: 📤 第二十七步：上传 bin 目录(仅搜寻不到固件时才会启动)
+        if: env.HAS_FIRMWARE == 'false' && env.UPLOAD_FIRMWARE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-bin-fallback
+          path: ${{ env.REPO_DIR }}/bin
+          retention-days: 7
+        continue-on-error: true
 
       # ==========================================================================
       # 第二十八步：发布到 Release（可选）
