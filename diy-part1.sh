@@ -20,7 +20,7 @@ echo 'src-git kenzo https://github.com/kenzok8/openwrt-packages' >>feeds.conf.de
 echo 'src-git small https://github.com/kenzok8/small' >>feeds.conf.default
 
 # luci-app-atinout 插件 与 modemfeed 重复
-echo 'src-git 4ice https://github.com/4IceG/luci-app-atinout-mod.git' >>feeds.conf.default
+# echo 'src-git 4ice https://github.com/4IceG/luci-app-atinout-mod.git' >>feeds.conf.default
 
 # luci-app-passwall 依赖
 echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git' >>feeds.conf.default
@@ -35,3 +35,6 @@ echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >>feeds.con
 echo 'src-git qmodem https://github.com/FUjr/QModem.git' >>feeds.conf.default
 # luci-app-vohive 驱动管理插件（可选）LuCI -> Applications -> luci-app-vohive
 # echo 'src-git vohive https://github.com/voorz/luci-app-vohive.git' >>feeds.conf.default
+
+# 3ginfo-lite 专注于显示信号强度、网络类型等关键信息
+src-git 3ginfo https://github.com/4IceG/luci-app-3ginfo-lite.git
