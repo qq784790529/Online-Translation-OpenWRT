@@ -29,10 +29,10 @@ echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-pa
 # echo 'src-git passwall2 https://github.com/xiaorouji/openwrt-passwall2.git' >>feeds.conf.default
 
 # 4G/5G模组
-# modemfeed 轻量化
-echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >>feeds.conf.default
-# QModem 一站式 和 modemfeed 轻量化 同时只能开启一个
-echo 'src-git qmodem https://github.com/FUjr/QModem.git' >>feeds.conf.default
+# modemfeed 轻量化 不好用
+# echo 'src-git modemfeed https://github.com/koshev-msk/modemfeed.git' >>feeds.conf.default
+# QModem 一站式 编译不出固件
+# echo 'src-git qmodem https://github.com/FUjr/QModem.git' >>feeds.conf.default
 # luci-app-vohive 驱动管理插件（可选）LuCI -> Applications -> luci-app-vohive
 # echo 'src-git vohive https://github.com/voorz/luci-app-vohive.git' >>feeds.conf.default
 
