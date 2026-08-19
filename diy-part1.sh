@@ -37,4 +37,4 @@ echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-pa
 # echo 'src-git vohive https://github.com/voorz/luci-app-vohive.git' >>feeds.conf.default
 
 # 3ginfo-lite 专注于显示信号强度、网络类型等关键信息
-src-git 3ginfo https://github.com/4IceG/luci-app-3ginfo-lite.git
+# echo 'src-git 3ginfo https://github.com/4IceG/luci-app-3ginfo-lite.git' >>feeds.conf.default
