@@ -40,4 +40,4 @@ echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-pa
 # echo 'src-git 3ginfo https://github.com/4IceG/luci-app-3ginfo-lite.git' >>feeds.conf.default
 
 # RTL驱动
-echo 'src-git rtw88usb https://github.com/henkv1/rtw88-usb-openwrt.git;23.05' >>feeds.conf.default
+echo 'src-git rtw88usb https://github.com/henkv1/rtw88-usb-openwrt.git' >>feeds.conf.default
