@@ -599,29 +599,44 @@ jobs:
           echo "================================================================"
           cd ${{ env.REPO_DIR }}
 
-          # 1. 克隆驱动源码到 package/kernel/rtw88-usb
+          # 1. 克隆驱动源码
           echo "📥 克隆 RTL8811CU 驱动源码..."
           rm -rf package/kernel/rtl8811cu
-          git clone -b 23.05 https://github.com/henkv1/rtw88-usb-openwrt.git package/kernel/rtw88-usb
+          rm -rf package/kernel/rtw88-backports
+          git clone https://github.com/LuisMitaHL/rtw88-openwrt.git package/kernel/rtw88-backports
 
-          # 2. 在 .config 中启用驱动（暂不运行 defconfig，由第十一步统一处理）
+          # 2. 移除 PCI_SUPPORT 依赖
+          echo "🔧 移除 PCI_SUPPORT 依赖..."
+          cd package/kernel/rtw88-backports
+          sed -i '/+@PCI_SUPPORT/d' Makefile
+          cd ../../..
+          echo "✅ 已移除 PCI_SUPPORT 依赖"
+
+          # 3. 禁用可能冲突的旧驱动
+          echo "🔧 禁用可能冲突的旧驱动..."
+          sed -i 's/^CONFIG_PACKAGE_rtw88-firmware=y/# CONFIG_PACKAGE_rtw88-firmware is not set/' .config
+          sed -i 's/^CONFIG_PACKAGE_kmod-rtw88-usb=y/# CONFIG_PACKAGE_kmod-rtw88-usb is not set/' .config
+          sed -i 's/^CONFIG_PACKAGE_kmod-rtl8811cu-ct=y/# CONFIG_PACKAGE_kmod-rtl8811cu-ct is not set/' .config
+
+          # 4. 启用新驱动
           echo "📝 在 .config 中启用 RTL8811CU 驱动..."
-          if grep -q "^CONFIG_PACKAGE_kmod-rtw88-usb=" .config; then
-            sed -i 's/^CONFIG_PACKAGE_kmod-rtw88-usb=.*/CONFIG_PACKAGE_kmod-rtw88-usb=y/' .config
+          if grep -q "^CONFIG_PACKAGE_kmod-rtw88-backports-usb=" .config; then
+            sed -i 's/^CONFIG_PACKAGE_kmod-rtw88-backports-usb=.*/CONFIG_PACKAGE_kmod-rtw88-backports-usb=y/' .config
           else
-            echo 'CONFIG_PACKAGE_kmod-rtw88-usb=y' >> .config
+            echo 'CONFIG_PACKAGE_kmod-rtw88-backports-usb=y' >> .config
           fi
 
-          if grep -q "^CONFIG_PACKAGE_rtw88-firmware=" .config; then
-            sed -i 's/^CONFIG_PACKAGE_rtw88-firmware=.*/CONFIG_PACKAGE_rtw88-firmware=y/' .config
+          # 5. 启用固件包
+          if grep -q "^CONFIG_PACKAGE_rtw88-backports-firmware=" .config; then
+            sed -i 's/^CONFIG_PACKAGE_rtw88-backports-firmware=.*/CONFIG_PACKAGE_rtw88-backports-firmware=y/' .config
           else
-            echo 'CONFIG_PACKAGE_rtw88-firmware=y' >> .config
+            echo 'CONFIG_PACKAGE_rtw88-backports-firmware=y' >> .config
           fi
 
           echo "✅ 驱动配置已添加到 .config（将由第十一步的 defconfig 统一处理）"
           echo "================================================================"
           echo "✅ RTL8811CU 驱动准备完成"
-          echo "================================================================"      
+          echo "================================================================"  
 
       # ==========================================================================
       # 第十一步：生成完整编译配置
