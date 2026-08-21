@@ -48,3 +48,11 @@ quectel-cm
 
 E103.config.移远插件基础上加入passwall  
 luci-app-passwall  
+
+E103.config.移远插件基础上加入passwall、AIC8800、RTL8821CU、RTL8822CU  
+CONFIG_PACKAGE_aic8800-usb-firmware  
+CONFIG_PACKAGE_kmod-rtw88-8821cu  
+CONFIG_PACKAGE_kmod-rtw88-8821c  
+CONFIG_PACKAGE_kmod-rtw88-8822c  
+CONFIG_PACKAGE_kmod-rtw88-8822cu  
+CONFIG_PACKAGE_kmod-rtw88-usb
