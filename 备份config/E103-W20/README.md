@@ -25,5 +25,26 @@ kmod-input-gpio-keys.................................... GPIO key support
 usbutils................................... USB devices listing utilities  
 iperf3........................ Internet Protocol bandwidth measuring tool  
 
-E103.config.加入移远插件包含初始插件版全部选择  
+E103.config.加入移远插件  包含初始插件版全部选择  
+kmod-usb-net-cdc-ether  
+kmod-usb-net-cdc-mbim  
+kmod-usb-net-cdc-ncm  
+kmod-usb-net-cdc-subset  
+kmod-usb-net-qmi-wwan  
+kmod-usb-serial  
+kmod-usb-serial-option  
+kmod-usb-serial-wwan  
+kmod-usb-uhci  
+wwan  
+chat  
+uqmi  
+umbim  
+comgt  
+CONFIG_PACKAGE_nano-full  
+luci-app-qos-legacy  
+luci-proto-3g  
+luci-proto-ppp  
+quectel-cm  
 
+E103.config.移远插件基础上加入passwall  
+luci-app-passwall  
