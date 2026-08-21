@@ -38,6 +38,3 @@ echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-pa
 
 # 3ginfo-lite 专注于显示信号强度、网络类型等关键信息
 # echo 'src-git 3ginfo https://github.com/4IceG/luci-app-3ginfo-lite.git' >>feeds.conf.default
-
-# RTL驱动
-echo 'src-git rtw88usb https://github.com/ProKn1fe/RTL8811CU_OpenWRT.git' >>feeds.conf.default
