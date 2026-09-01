@@ -24,6 +24,9 @@
 # 2.0版本，添加BUG文件，用于AI分析具体失败问题,修改内容有十七步，新增十七点五、十七点六
 # 2.1版本，重新排序步骤，增加提取错误日志、上传 debug.log、上传 DTS/DTSI 源文件（可选）、列出生成的固件文件并设置标志的步骤，注释 发布到 Release（可选）步骤。
 # 2.2版本，添加RTL8811CU驱动可选项，添加为独立开关 和 第十步.五：添加 RTL8811CU USB 无线网卡驱动（条件执行）
+# 2.3版本，修复第十三步，修正option.c的目录查找方式，默认新版内核（6.6.x）为drivers/usb/serial/option.c，但旧版内核（5.x）中按顺序查找第一个option.c的问题。
+#           内核 5.x 中 Nouveau 显卡驱动目录下没有 option.c 这个文件，但是6.6.x内核中添加了option.c这个文件，会导致域格JC3的PID和VID添加到 Nouveau 显卡驱动
+#           目录中的option.c文件中，而不是USB的option.c。
 # ============================================================================
 # 重要备注：十一步之后禁止运行含有make defconfig的命令，会丢失dts文件
 # 
@@ -776,13 +779,13 @@ jobs:
       # ==========================================================================
       # 第十三步：添加 USB 设备 VID/PID 驱动支持（可扩展，无条件执行）
       # ==========================================================================
-      - name: 🧩 第十三步：添加 USB 设备驱动支持
+      - name: 🧩 第十三步：添加 USB 设备 VID/PID 驱动支持（可扩展，无条件执行）
         run: |
           echo "================================================================"
           echo "🔧 开始添加 USB 设备 VID/PID 驱动支持..."
           echo "================================================================"
           cd ${{ env.REPO_DIR }}
-          
+
           # ★★★ USB 设备定义列表（扩展方便）★★★
           # 格式说明：
           #   - 普通设备： "VID:PID"
@@ -793,31 +796,39 @@ jobs:
             # "0x1234:0x5678"                   # 示例：后续新设备（无过滤）
             # "0xabcd:0xef01:RSVD(2)|RSVD(3)"   # 示例：后续新设备（需过滤）
           )
-          
+
           # 解压内核源码（确保 option.c 可编辑）
           make target/linux/prepare V=s
-          
-          # 定位 option.c 文件
-          OPTION_C=$(find build_dir -name "option.c" | head -n 1)
-          if [ -z "$OPTION_C" ]; then
-            echo "❌ 未找到 option.c，无法添加驱动！"
-            exit 1
+
+          # ---------- 优先查找正确的 USB 串口 option.c ----------
+          OPTION_C=""
+          # 1) 精确查找 drivers/usb/serial/option.c
+          OPTION_C=$(find build_dir -path "*/usb/serial/option.c" | head -n 1)
+          if [ -n "$OPTION_C" ]; then
+            echo "✅ 找到正确的 option.c: $OPTION_C"
+          else
+            echo "⚠️  未找到精确路径的 option.c，尝试通用查找（可能找到错误的文件）..."
+            OPTION_C=$(find build_dir -name "option.c" | head -n 1)
+            if [ -z "$OPTION_C" ]; then
+              echo "❌ 未找到任何 option.c 文件，无法添加驱动！"
+              exit 1
+            fi
+            echo "⚠️  使用通用查找找到: $OPTION_C（请确认这是正确的文件）"
           fi
-          echo "✅ 找到 option.c: $OPTION_C"
-          
+
           # 遍历设备列表，逐个添加
           for entry in "${DEVICES[@]}"; do
             # 解析 VID、PID 和可选的 RSVD 标志
             VID=$(echo "$entry" | cut -d':' -f1)
             PID=$(echo "$entry" | cut -d':' -f2)
             RSVD=$(echo "$entry" | cut -d':' -f3-)
-            
+
             # 检查是否已存在该 VID:PID
             if grep -q "$VID.*$PID" "$OPTION_C"; then
               echo "ℹ️  设备 $VID:$PID 已存在，跳过。"
               continue
             fi
-            
+
             # 构造要插入的条目
             if [ -n "$RSVD" ]; then
               # 有 RSVD 标志，添加带 .driver_info 的条目
@@ -828,15 +839,15 @@ jobs:
               INSERT="{ USB_DEVICE($VID, $PID) },"
               echo "  ✅ 添加设备 $VID:$PID"
             fi
-            
+
             # 插入到 option_ids[] 数组中（在起始大括号后插入）
             sed -i "/static const struct usb_device_id option_ids\[\] = {/a $INSERT" "$OPTION_C"
           done
-          
+
           echo "================================================================"
           echo "✅ USB 设备驱动添加完成"
           echo "================================================================"
-      
+          
       # ==========================================================================
       # 第十四步：修复 binutils 下载哈希
       # ==========================================================================     
