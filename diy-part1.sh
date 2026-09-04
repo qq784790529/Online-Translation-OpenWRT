@@ -27,3 +27,6 @@ echo 'src-git small https://github.com/kenzok8/small' >>feeds.conf.default
 
 # 适用于 OpenWrt LuCi 的 3G/LTE 加密狗信息
 # echo 'src-git modeminfo https://github.com/iFHax/luci-app-modeminfo.git' >>feeds.conf.default
+
+# Turbo ACC 加速（SFE + BBR + FullCone）
+echo "src-git turboacc https://github.com/chenmozhijin/turboacc.git" >> feeds.conf.default
