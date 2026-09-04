@@ -26,7 +26,7 @@
 # 2.2版本，添加RTL8811CU驱动可选项，添加为独立开关 和 第十步.五：添加 RTL8811CU USB 无线网卡驱动（条件执行）
 # 2.3版本，修复第十三步，修正option.c的目录查找方式，默认新版内核（6.6.x）为drivers/usb/serial/option.c，但旧版内核（5.x）中按顺序查找第一个option.c的问题。
 #           内核 5.x 中 Nouveau 显卡驱动目录下没有 option.c 这个文件，但是6.6.x内核中添加了option.c这个文件，会导致域格JC3的PID和VID添加到 Nouveau 显卡驱动
-#           目录中的option.c文件中，而不是USB的option.c。
+#           目录中的option.c文件中，而不是USB的option.c。去除RTL8811CU的添加功能
 # ============================================================================
 # 重要备注：十一步之后禁止运行含有make defconfig的命令，会丢失dts文件
 # 
@@ -115,11 +115,11 @@ on:
         default: false
         
        # ========== RTL8811CU 驱动添加选项 ==========
-      enable_rtl8811cu:
-        description: '📶 是否启用 RTL8811CU USB 无线网卡驱动'
-        type: boolean
-        required: false
-        default: false
+      # enable_rtl8811cu:
+      #   description: '📶 是否启用 RTL8811CU USB 无线网卡驱动'
+      #   type: boolean
+      #   required: false
+      #   default: false
         
       # ========== 是否运行 make defconfig ==========
       #enable_defconfig:
@@ -594,52 +594,52 @@ jobs:
       # ==========================================================================
       # 第十步.五：添加 RTL8811CU USB 无线网卡驱动（条件执行）
       # ==========================================================================
-      - name: 📶 第十步.五：添加 RTL8811CU 驱动
-        if: github.event.inputs.enable_rtl8811cu == 'true'
-        run: |
-          echo "================================================================"
-          echo "📶 开始添加 RTL8811CU 无线网卡驱动..."
-          echo "================================================================"
-          cd ${{ env.REPO_DIR }}
+      # - name: 📶 第十步.五：添加 RTL8811CU 驱动
+      #   if: github.event.inputs.enable_rtl8811cu == 'true'
+      #   run: |
+      #     echo "================================================================"
+      #     echo "📶 开始添加 RTL8811CU 无线网卡驱动..."
+      #     echo "================================================================"
+      #     cd ${{ env.REPO_DIR }}
 
-          # 1. 克隆驱动源码
-          echo "📥 克隆 RTL8811CU 驱动源码..."
-          rm -rf package/kernel/rtl8811cu
-          rm -rf package/kernel/rtw88-backports
-          git clone https://github.com/LuisMitaHL/rtw88-openwrt.git package/kernel/rtw88-backports
+      #     # 1. 克隆驱动源码
+      #     echo "📥 克隆 RTL8811CU 驱动源码..."
+      #     rm -rf package/kernel/rtl8811cu
+      #     rm -rf package/kernel/rtw88-backports
+      #     git clone https://github.com/LuisMitaHL/rtw88-openwrt.git package/kernel/rtw88-backports
 
-          # 2. 移除 PCI_SUPPORT 依赖
-          echo "🔧 移除 PCI_SUPPORT 依赖..."
-          cd package/kernel/rtw88-backports
-          sed -i '/+@PCI_SUPPORT/d' Makefile
-          cd ../../..
-          echo "✅ 已移除 PCI_SUPPORT 依赖"
+      #     # 2. 移除 PCI_SUPPORT 依赖
+      #     echo "🔧 移除 PCI_SUPPORT 依赖..."
+      #     cd package/kernel/rtw88-backports
+      #     sed -i '/+@PCI_SUPPORT/d' Makefile
+      #     cd ../../..
+      #     echo "✅ 已移除 PCI_SUPPORT 依赖"
 
-          # 3. 禁用可能冲突的旧驱动
-          echo "🔧 禁用可能冲突的旧驱动..."
-          sed -i 's/^CONFIG_PACKAGE_rtw88-firmware=y/# CONFIG_PACKAGE_rtw88-firmware is not set/' .config
-          sed -i 's/^CONFIG_PACKAGE_kmod-rtw88-usb=y/# CONFIG_PACKAGE_kmod-rtw88-usb is not set/' .config
-          sed -i 's/^CONFIG_PACKAGE_kmod-rtl8811cu-ct=y/# CONFIG_PACKAGE_kmod-rtl8811cu-ct is not set/' .config
+      #     # 3. 禁用可能冲突的旧驱动
+      #     echo "🔧 禁用可能冲突的旧驱动..."
+      #     sed -i 's/^CONFIG_PACKAGE_rtw88-firmware=y/# CONFIG_PACKAGE_rtw88-firmware is not set/' .config
+      #     sed -i 's/^CONFIG_PACKAGE_kmod-rtw88-usb=y/# CONFIG_PACKAGE_kmod-rtw88-usb is not set/' .config
+      #     sed -i 's/^CONFIG_PACKAGE_kmod-rtl8811cu-ct=y/# CONFIG_PACKAGE_kmod-rtl8811cu-ct is not set/' .config
 
-          # 4. 启用新驱动
-          echo "📝 在 .config 中启用 RTL8811CU 驱动..."
-          if grep -q "^CONFIG_PACKAGE_kmod-rtw88-backports-usb=" .config; then
-            sed -i 's/^CONFIG_PACKAGE_kmod-rtw88-backports-usb=.*/CONFIG_PACKAGE_kmod-rtw88-backports-usb=y/' .config
-          else
-            echo 'CONFIG_PACKAGE_kmod-rtw88-backports-usb=y' >> .config
-          fi
+      #     # 4. 启用新驱动
+      #     echo "📝 在 .config 中启用 RTL8811CU 驱动..."
+      #     if grep -q "^CONFIG_PACKAGE_kmod-rtw88-backports-usb=" .config; then
+      #       sed -i 's/^CONFIG_PACKAGE_kmod-rtw88-backports-usb=.*/CONFIG_PACKAGE_kmod-rtw88-backports-usb=y/' .config
+      #     else
+      #       echo 'CONFIG_PACKAGE_kmod-rtw88-backports-usb=y' >> .config
+      #     fi
 
-          # 5. 启用固件包
-          if grep -q "^CONFIG_PACKAGE_rtw88-backports-firmware=" .config; then
-            sed -i 's/^CONFIG_PACKAGE_rtw88-backports-firmware=.*/CONFIG_PACKAGE_rtw88-backports-firmware=y/' .config
-          else
-            echo 'CONFIG_PACKAGE_rtw88-backports-firmware=y' >> .config
-          fi
+      #     # 5. 启用固件包
+      #     if grep -q "^CONFIG_PACKAGE_rtw88-backports-firmware=" .config; then
+      #       sed -i 's/^CONFIG_PACKAGE_rtw88-backports-firmware=.*/CONFIG_PACKAGE_rtw88-backports-firmware=y/' .config
+      #     else
+      #       echo 'CONFIG_PACKAGE_rtw88-backports-firmware=y' >> .config
+      #     fi
 
-          echo "✅ 驱动配置已添加到 .config（将由第十一步的 defconfig 统一处理）"
-          echo "================================================================"
-          echo "✅ RTL8811CU 驱动准备完成"
-          echo "================================================================"  
+      #     echo "✅ 驱动配置已添加到 .config（将由第十一步的 defconfig 统一处理）"
+      #     echo "================================================================"
+      #     echo "✅ RTL8811CU 驱动准备完成"
+      #     echo "================================================================"  
 
       # ==========================================================================
       # 第十一步：生成完整编译配置
