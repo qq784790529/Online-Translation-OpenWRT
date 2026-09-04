@@ -23,7 +23,7 @@ echo 'src-git small https://github.com/kenzok8/small' >>feeds.conf.default
 # echo 'src-git 4ice https://github.com/4IceG/luci-app-atinout-mod.git' >>feeds.conf.default
 
 # QModem 支持4G和5G模组，已明确支持移远（Quectel）和广和通（Fibocom）的大部分4G和5G模组，以及 Sierra 和 Simcom 的部分5G模组
-echo 'src-git QModem https://github.com/FUjr/QModem.git' >>feeds.conf.default
+# echo 'src-git QModem https://github.com/FUjr/QModem.git' >>feeds.conf.default
 
 # 适用于 OpenWrt LuCi 的 3G/LTE 加密狗信息
-echo 'src-git modeminfo https://github.com/iFHax/luci-app-modeminfo.git' >>feeds.conf.default
+# echo 'src-git modeminfo https://github.com/iFHax/luci-app-modeminfo.git' >>feeds.conf.default
